@@ -1,0 +1,10 @@
+{
+  "itemGroup.lastwitness": "Last Witness",
+  "item.lastwitness.echo_of_past": "Echo of Past",
+  "item.lastwitness.echo_of_past.help1": "A faint memory clings to this item.",
+  "item.lastwitness.echo_of_past.help2": "Its memory may be separated by intense heat.",
+  "lastwitness.configuration.title": "Last Witness Configs",
+  "lastwitness.configuration.section.lastwitness.common.toml": "Last Witness Configs",
+  "lastwitness.configuration.section.lastwitness.common.toml.title": "Last Witness Configs",
+  "lastwitness.configuration.echoMarkerDurability": "Echo Marker Durability"
+}
