@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "lastwitness:item/echo_marker_inactive"
+  }
+}

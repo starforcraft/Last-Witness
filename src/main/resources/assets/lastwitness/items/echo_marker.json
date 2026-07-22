@@ -1,0 +1,14 @@
+{
+  "model": {
+    "type": "minecraft:condition",
+    "property": "lastwitness:echo_marker_active",
+    "on_true": {
+      "type": "minecraft:model",
+      "model": "lastwitness:item/echo_marker_active"
+    },
+    "on_false": {
+      "type": "minecraft:model",
+      "model": "lastwitness:item/echo_marker_inactive"
+    }
+  }
+}

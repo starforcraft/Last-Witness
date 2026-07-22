@@ -1,10 +1,18 @@
 {
   "itemGroup.lastwitness": "Last Witness",
-  "item.lastwitness.echo_of_past": "Echo of Past",
-  "item.lastwitness.echo_of_past.help1": "A faint memory clings to this item.",
-  "item.lastwitness.echo_of_past.help2": "Its memory may be separated by intense heat.",
+  "item.lastwitness.echo_of_past": "Echo of the Past",
+  "item.lastwitness.echo_of_past.help": "A memory separated from its former vessel.",
+  "item.lastwitness.echo_marker": "Echo Marker",
+  "tooltip.lastwitness.echo_of_past.header": "Echo of the Past",
+  "tooltip.lastwitness.echo_of_past.source": "From: %s",
+  "tooltip.lastwitness.echo_of_past.time_of_death": "Time of Death: Day %s, %s",
+  "tooltip.lastwitness.echo_of_past.tracker_id": "Tracker: %s",
+  "tooltip.lastwitness.echo_of_past.help_1": "A faint memory clings to this item.",
+  "tooltip.lastwitness.echo_of_past.help_2": "Its memory may be separated by intense heat.",
   "lastwitness.configuration.title": "Last Witness Configs",
   "lastwitness.configuration.section.lastwitness.common.toml": "Last Witness Configs",
   "lastwitness.configuration.section.lastwitness.common.toml.title": "Last Witness Configs",
-  "lastwitness.configuration.echoMarkerDurability": "Echo Marker Durability"
+  "lastwitness.configuration.echoMarkerDurability": "Echo Marker Durability",
+  "lastwitness.configuration.echoSpawnChance": "Echo Spawn Chance",
+  "lastwitness.configuration.echoTrackSeconds": "Echo Track Seconds"
 }
