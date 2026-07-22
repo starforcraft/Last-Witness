@@ -18,7 +18,7 @@ import static com.ultramega.lastwitness.LastWitness.MODID;
 
 @Mod(value = MODID, dist = Dist.CLIENT)
 @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
-public class LastWitnessClient {
+public final class LastWitnessClient {
     public LastWitnessClient(final ModContainer container) {
         NeoForge.EVENT_BUS.addListener(EchoTooltipHandler::onItemTooltip);
 

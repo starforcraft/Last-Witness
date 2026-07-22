@@ -1,9 +1,8 @@
 package com.ultramega.lastwitness.items;
 
+import com.ultramega.lastwitness.Config;
 import com.ultramega.lastwitness.data.EchoMarkedData;
-import com.ultramega.lastwitness.data.EchoOfPastData;
 import com.ultramega.lastwitness.registry.ModDataComponents;
-import com.ultramega.lastwitness.registry.ModItems;
 
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
@@ -21,15 +20,13 @@ public class EchoMarkerItem extends Item {
     public InteractionResult use(final Level level, final Player player, final InteractionHand hand) {
         // TODO: implement correctly
 
-        final ItemStack offhand = player.getOffhandItem();
-        if (offhand.is(ModItems.ECHO_OF_PAST.get()) && offhand.has(ModDataComponents.ECHO_OF_PAST)) {
-            final EchoOfPastData echoOfPast = offhand.get(ModDataComponents.ECHO_OF_PAST);
-            offhand.shrink(1);
-            // TODO
-        } else {
-            player.getMainHandItem().set(ModDataComponents.ECHO_MARKED, new EchoMarkedData(player.getUUID()));
-        }
+        player.getMainHandItem().set(ModDataComponents.ECHO_MARKED, new EchoMarkedData(player.getUUID()));
 
         return super.use(level, player, hand);
+    }
+
+    @Override
+    public int getMaxDamage(final ItemStack stack) {
+        return Config.ECHO_MARKER_DURABILITY.get();
     }
 }

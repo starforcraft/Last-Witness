@@ -17,7 +17,7 @@ import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
 
 @Mod(LastWitness.MODID)
-public class LastWitness {
+public final class LastWitness {
     public static final String MODID = "lastwitness";
     private static final Logger LOGGER = LogUtils.getLogger();
 

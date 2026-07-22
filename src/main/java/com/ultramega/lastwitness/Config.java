@@ -2,7 +2,7 @@ package com.ultramega.lastwitness;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
 
-public class Config {
+public final class Config {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.IntValue ECHO_MARKER_DURABILITY = BUILDER

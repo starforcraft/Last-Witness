@@ -14,5 +14,8 @@
   "lastwitness.configuration.section.lastwitness.common.toml.title": "Last Witness Configs",
   "lastwitness.configuration.echoMarkerDurability": "Echo Marker Durability",
   "lastwitness.configuration.echoSpawnChance": "Echo Spawn Chance",
-  "lastwitness.configuration.echoTrackSeconds": "Echo Track Seconds"
+  "lastwitness.configuration.echoTrackSeconds": "Echo Track Seconds",
+  "jei.lastwitness.echo_of_past.chance": "A newly spawned living entity has a %s chance to carry an echo.",
+  "jei.lastwitness.echo_of_past.drop": "When an echo-bearing entity dies, one random item from its generated drops stores that memory.",
+  "jei.lastwitness.echo_of_past.extract": "Throw that marked drop into intense heat, such as lava, to extract the memory and obtain this item."
 }
