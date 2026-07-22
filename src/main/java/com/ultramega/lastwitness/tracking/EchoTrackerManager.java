@@ -27,9 +27,7 @@ public final class EchoTrackerManager {
         final TrackerStore store = getStore(server);
         final EchoTracker activeTracker = store.activeTrackers.remove(entity.getUUID());
         final EchoTracker tracker = activeTracker != null ? activeTracker : new EchoTracker();
-
-        tracker.record(entity);
-
+        tracker.recordFinal(entity);
         final EchoTrack completedTrack = tracker.freeze(entity);
         store.completedTracks.put(completedTrack.id(), completedTrack);
         return completedTrack;

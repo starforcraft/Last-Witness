@@ -19,7 +19,7 @@ import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.Pose;
+import net.minecraft.world.entity.animal.FlyingAnimal;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -28,6 +28,7 @@ import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 public final class GhostReplayClient {
     private static final String GHOST_TAG = "lastwitness_ghost";
+    private static final int END_HOLD_TICKS = 20;
     private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-1_000_000_000);
     private static final List<ActiveGhost> ACTIVE_GHOSTS = new ArrayList<>();
 
@@ -43,7 +44,6 @@ public final class GhostReplayClient {
     public static void onClientTick(final ClientTickEvent.Post event) {
         final Minecraft minecraft = Minecraft.getInstance();
         final ClientLevel level = minecraft.level;
-
         if (level == null) {
             clearGhosts();
             activeLevel = null;
@@ -97,94 +97,77 @@ public final class GhostReplayClient {
             return;
         }
 
-        ghost.setId(NEXT_ENTITY_ID.getAndDecrement());
-        ghost.setUUID(UUID.randomUUID());
-        ghost.addTag(GHOST_TAG);
-        ghost.setSilent(true);
-        ghost.setInvulnerable(true);
-        ghost.setInvisible(false);
-        ghost.setGlowingTag(true);
-        ghost.setCustomNameVisible(false);
-        ghost.noPhysics = true;
-        ghost.setDeltaMovement(Vec3.ZERO);
-        if (ghost instanceof Mob mob) {
-            mob.setNoAi(true);
-        }
+        final int ghostId = NEXT_ENTITY_ID.getAndDecrement();
+        final UUID ghostUuid = UUID.randomUUID();
+        final List<EntitySnapshot> snapshots = payload.snapshots();
+        final Vec3 anchorOffset = calculateAnchorOffset(ghost, payload);
+        final List<ReplayFrame> replayFrames = buildReplayFrames(ghost, snapshots, anchorOffset);
 
-        final List<EntitySnapshot> replayFrames = anchorAtEchoItem(payload);
-        final EntitySnapshot firstFrame = replayFrames.getFirst();
-        applyInitialFrame(ghost, firstFrame);
+        applyInitialFrame(ghost, replayFrames.getFirst(), ghostId, ghostUuid);
         level.addEntity(ghost);
-
-        ACTIVE_GHOSTS.add(new ActiveGhost(ghost, replayFrames));
+        ACTIVE_GHOSTS.add(new ActiveGhost(ghost, replayFrames, ghostId, ghostUuid));
         activeLevel = level;
     }
 
-
-    /**
-     * Re-centers the historical path so its final frame ends at the echo item.
-     * This keeps the manifestation attached to the item even if water or an
-     * explosion moved the untouched drop after the source entity died.
-     */
-    private static List<EntitySnapshot> anchorAtEchoItem(final GhostReplayPayload payload) {
-        final EntitySnapshot finalFrame = payload.snapshots().getLast();
-        final double offsetX = payload.anchorX() - finalFrame.x();
-        final double offsetY = payload.anchorY() - finalFrame.y();
-        final double offsetZ = payload.anchorZ() - finalFrame.z();
-
-        return payload.snapshots().stream()
-            .map(frame -> new EntitySnapshot(
-                frame.gameTime(),
-                frame.x() + offsetX,
-                frame.y() + offsetY,
-                frame.z() + offsetZ,
-                frame.yRot(),
-                frame.xRot(),
-                frame.bodyYRot(),
-                frame.headYRot(),
-                frame.pose(),
-                frame.health(),
-                frame.onGround(),
-                frame.sprinting(),
-                frame.swimming(),
-                frame.fallFlying(),
-                frame.usingItem()
-            ))
-            .toList();
+    private static Vec3 calculateAnchorOffset(final LivingEntity ghost, final GhostReplayPayload payload) {
+        payload.snapshots().getLast().loadInto(ghost);
+        return new Vec3(payload.anchorX(), payload.anchorY(), payload.anchorZ())
+            .subtract(ghost.position());
     }
 
-    private static void applyInitialFrame(final LivingEntity ghost, final EntitySnapshot frame) {
-        ghost.snapTo(frame.x(), frame.y(), frame.z(), frame.yRot(), frame.xRot());
-        ghost.setOldPosAndRot(new Vec3(frame.x(), frame.y(), frame.z()), frame.yRot(), frame.xRot());
-        applyFrameState(ghost, frame);
+    private static List<ReplayFrame> buildReplayFrames(final LivingEntity ghost, final List<EntitySnapshot> snapshots, final Vec3 anchorOffset) {
+        final List<ReplayFrame> frames = new ArrayList<>(snapshots.size());
+        for (final EntitySnapshot snapshot : snapshots) {
+            snapshot.loadInto(ghost);
+            frames.add(new ReplayFrame(snapshot, ghost.position().add(anchorOffset)));
+        }
+        return List.copyOf(frames);
     }
 
-    private static void applyFrame(final LivingEntity ghost, final EntitySnapshot frame) {
+    private static void applyInitialFrame(final LivingEntity ghost, final ReplayFrame frame, final int ghostId, final UUID ghostUuid) {
+        frame.snapshot().loadInto(ghost);
+        moveToPosition(ghost, frame.position());
+        applyGhostState(ghost, ghostId, ghostUuid);
         ghost.setOldPosAndRot(ghost.position(), ghost.getYRot(), ghost.getXRot());
-        ghost.setPos(frame.x(), frame.y(), frame.z());
-        ghost.setYRot(frame.yRot());
-        ghost.setXRot(frame.xRot());
-        applyFrameState(ghost, frame);
     }
 
-    private static void applyFrameState(final LivingEntity ghost, final EntitySnapshot frame) {
-        ghost.setYBodyRot(frame.bodyYRot());
-        ghost.setYHeadRot(frame.headYRot());
-        ghost.setPose(parsePose(frame.pose()));
-        ghost.setOnGround(frame.onGround());
-        ghost.setSprinting(frame.sprinting());
-        ghost.setSwimming(frame.swimming());
-        ghost.setDeltaMovement(Vec3.ZERO);
-        ghost.noPhysics = true;
+    private static void applySnapshotState(final LivingEntity ghost, final ReplayFrame frame, final int ghostId, final UUID ghostUuid) {
+        frame.snapshot().loadInto(ghost);
+        applyGhostState(ghost, ghostId, ghostUuid);
+    }
+
+    private static void moveToPosition(final LivingEntity ghost, final Vec3 position) {
+        ghost.snapTo(position.x(), position.y(), position.z(), ghost.getYRot(), ghost.getXRot());
+    }
+
+    private static Vec3 interpolatePosition(final ReplayFrame from,
+                                            final ReplayFrame to,
+                                            final long fromOffset,
+                                            final long toOffset,
+                                            final long elapsedTicks) {
+        final long duration = Math.max(1L, toOffset - fromOffset);
+        final double progress = Math.clamp((double) (elapsedTicks - fromOffset) / duration, 0.0D, 1.0D);
+        return from.position().lerp(to.position(), progress);
+    }
+
+    private static void applyGhostState(final LivingEntity ghost, final int ghostId, final UUID ghostUuid) {
+        ghost.setId(ghostId);
+        ghost.setUUID(ghostUuid);
+        ghost.addTag(GHOST_TAG);
+        ghost.setSilent(true);
+        ghost.setInvulnerable(true);
+        if (!ghost.isAlive()) {
+            ghost.setHealth(1.0F);
+        }
         ghost.setInvisible(false);
         ghost.setGlowingTag(true);
-    }
+        ghost.setCustomNameVisible(false);
+        ghost.setNoGravity(true);
+        ghost.noPhysics = true;
+        ghost.setDeltaMovement(Vec3.ZERO);
 
-    private static Pose parsePose(final String poseName) {
-        try {
-            return Pose.valueOf(poseName);
-        } catch (final IllegalArgumentException ignored) {
-            return Pose.STANDING;
+        if (ghost instanceof Mob mob) {
+            mob.setNoAi(true);
         }
     }
 
@@ -201,25 +184,73 @@ public final class GhostReplayClient {
         ACTIVE_GHOSTS.clear();
     }
 
+    private record ReplayFrame(EntitySnapshot snapshot, Vec3 position) {
+    }
+
     private static final class ActiveGhost {
         private final LivingEntity entity;
-        private final List<EntitySnapshot> snapshots;
-        private int nextFrame;
+        private final List<ReplayFrame> frames;
+        private final int ghostId;
+        private final UUID ghostUuid;
+        private final long firstGameTime;
 
-        private ActiveGhost(final LivingEntity entity, final List<EntitySnapshot> snapshots) {
+        private int nextFrame;
+        private long elapsedTicks;
+        private int endHoldTicks;
+
+        private ActiveGhost(final LivingEntity entity, final List<ReplayFrame> frames, final int ghostId, final UUID ghostUuid) {
             this.entity = entity;
-            this.snapshots = List.copyOf(snapshots);
+            this.frames = List.copyOf(frames);
+            this.ghostId = ghostId;
+            this.ghostUuid = ghostUuid;
+            this.firstGameTime = this.frames.getFirst().snapshot().gameTime();
             this.nextFrame = 1;
+            this.elapsedTicks = 1L;
         }
 
         private boolean tick(final ClientLevel level) {
-            if (this.entity.isRemoved() || this.entity.level() != level || this.nextFrame >= this.snapshots.size()) {
+            if (this.entity.isRemoved() || this.entity.level() != level) {
                 return false;
             }
 
-            applyFrame(this.entity, this.snapshots.get(this.nextFrame));
-            this.nextFrame++;
-            return true;
+            final Vec3 previousPosition = this.entity.position();
+            final float previousYRot = this.entity.getYRot();
+            final float previousXRot = this.entity.getXRot();
+
+            while (this.nextFrame < this.frames.size() && this.frameOffset(this.nextFrame) <= this.elapsedTicks) {
+                applySnapshotState(this.entity, this.frames.get(this.nextFrame), this.ghostId, this.ghostUuid);
+                this.nextFrame++;
+            }
+
+            final ReplayFrame currentFrame = this.frames.get(this.nextFrame - 1);
+            final Vec3 targetPosition;
+            if (this.nextFrame < this.frames.size()) {
+                targetPosition = interpolatePosition(
+                    currentFrame,
+                    this.frames.get(this.nextFrame),
+                    this.frameOffset(this.nextFrame - 1),
+                    this.frameOffset(this.nextFrame),
+                    this.elapsedTicks
+                );
+            } else {
+                targetPosition = currentFrame.position();
+            }
+
+            moveToPosition(this.entity, targetPosition);
+            this.entity.setOldPosAndRot(previousPosition, previousYRot, previousXRot);
+            applyGhostState(this.entity, this.ghostId, this.ghostUuid);
+            this.entity.calculateEntityAnimation(this.entity instanceof FlyingAnimal);
+
+            if (this.nextFrame < this.frames.size()) {
+                this.elapsedTicks++;
+                return true;
+            }
+
+            return this.endHoldTicks++ < END_HOLD_TICKS;
+        }
+
+        private long frameOffset(final int index) {
+            return Math.max(0L, this.frames.get(index).snapshot().gameTime() - this.firstGameTime);
         }
 
         private void remove(final ClientLevel level) {
