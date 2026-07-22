@@ -17,5 +17,9 @@ public final class Config {
         .comment("The amount of seconds that should be tracked to the past")
         .defineInRange("echoTrackSeconds", 5, 1, 120);
 
+    public static final ModConfigSpec.DoubleValue GHOST_REPLAY_CHANCE = BUILDER
+            .comment("Chance every five seconds for an untouched echo item resting on the ground to manifest its recording (0.0 to 1.0)")
+            .defineInRange("ghostReplayChance", 0.35D, 0.0D, 1.0D);
+
     static final ModConfigSpec SPEC = BUILDER.build();
 }

@@ -54,7 +54,8 @@ public final class EchoTrackingHandler {
             track.id(),
             track.sourceEntityType(),
             event.getSource().getLocalizedDeathMessage(livingEntity),
-            track.timeOfDeath()
+            track.timeOfDeath(),
+            true
         );
 
         final ItemEntity selectedDrop = usableDrops.get(serverLevel.getRandom().nextInt(usableDrops.size()));
