@@ -6,6 +6,7 @@
   "tooltip.lastwitness.echo_of_past.header": "Echo of the Past",
   "tooltip.lastwitness.echo_of_past.source": "From: %s",
   "tooltip.lastwitness.echo_of_past.time_of_death": "Time of Death: Day %s, %s",
+  "tooltip.lastwitness.echo_of_past.cause": "Cause: %s",
   "tooltip.lastwitness.echo_of_past.tracker_id": "Tracker: %s",
   "tooltip.lastwitness.echo_of_past.help_1": "A faint memory clings to this item.",
   "tooltip.lastwitness.echo_of_past.help_2": "Its memory may be separated by intense heat.",

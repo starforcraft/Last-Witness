@@ -51,6 +51,9 @@ public final class EchoTooltipHandler {
         tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.time_of_death", dayNumber(echo.timeOfDeath()), clockTime(echo.timeOfDeath()))
             .withStyle(ChatFormatting.GRAY));
 
+        tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.cause", echo.cause().getString())
+            .withStyle(ChatFormatting.GRAY));
+
         if (tooltipFlag.isAdvanced()) {
             tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.tracker_id", echo.trackerId())
                 .withStyle(ChatFormatting.DARK_GRAY));

@@ -50,7 +50,12 @@ public final class EchoTrackingHandler {
         }
 
         final EchoTrack track = EchoTrackerManager.complete(serverLevel.getServer(), livingEntity);
-        final EchoOfPastData component = new EchoOfPastData(track.id(), track.sourceEntityType(), track.timeOfDeath());
+        final EchoOfPastData component = new EchoOfPastData(
+            track.id(),
+            track.sourceEntityType(),
+            event.getSource().getLocalizedDeathMessage(livingEntity),
+            track.timeOfDeath()
+        );
 
         final ItemEntity selectedDrop = usableDrops.get(serverLevel.getRandom().nextInt(usableDrops.size()));
         attachToExactlyOneItem(event, selectedDrop, component, serverLevel);
