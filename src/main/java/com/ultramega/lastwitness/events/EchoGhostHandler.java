@@ -56,7 +56,7 @@ public final class EchoGhostHandler {
             itemEntity.getY(),
             itemEntity.getZ(),
             REPLAY_BROADCAST_RADIUS,
-            GhostReplayPayload.fromTrack(track.get(), itemEntity.position())
+            GhostReplayPayload.fromTrack(track.get())
         );
     }
 

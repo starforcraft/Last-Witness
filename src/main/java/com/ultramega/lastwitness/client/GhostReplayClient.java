@@ -1,6 +1,7 @@
 package com.ultramega.lastwitness.client;
 
 import com.ultramega.lastwitness.network.GhostReplayPayload;
+import com.ultramega.lastwitness.tracking.EntityReplayEvent;
 import com.ultramega.lastwitness.tracking.EntitySnapshot;
 
 import java.util.ArrayList;
@@ -100,26 +101,27 @@ public final class GhostReplayClient {
         final int ghostId = NEXT_ENTITY_ID.getAndDecrement();
         final UUID ghostUuid = UUID.randomUUID();
         final List<EntitySnapshot> snapshots = payload.snapshots();
-        final Vec3 anchorOffset = calculateAnchorOffset(ghost, payload);
-        final List<ReplayFrame> replayFrames = buildReplayFrames(ghost, snapshots, anchorOffset);
-
+        final List<ReplayFrame> replayFrames = buildReplayFrames(ghost, snapshots);
         applyInitialFrame(ghost, replayFrames.getFirst(), ghostId, ghostUuid);
+
+        final ActiveGhost replay = new ActiveGhost(
+            ghost,
+            replayFrames,
+            payload.entityEvents(),
+            ghostId,
+            ghostUuid
+        );
         level.addEntity(ghost);
-        ACTIVE_GHOSTS.add(new ActiveGhost(ghost, replayFrames, ghostId, ghostUuid));
+        replay.replayEventsThrough(0L);
+        ACTIVE_GHOSTS.add(replay);
         activeLevel = level;
     }
 
-    private static Vec3 calculateAnchorOffset(final LivingEntity ghost, final GhostReplayPayload payload) {
-        payload.snapshots().getLast().loadInto(ghost);
-        return new Vec3(payload.anchorX(), payload.anchorY(), payload.anchorZ())
-            .subtract(ghost.position());
-    }
-
-    private static List<ReplayFrame> buildReplayFrames(final LivingEntity ghost, final List<EntitySnapshot> snapshots, final Vec3 anchorOffset) {
+    private static List<ReplayFrame> buildReplayFrames(final LivingEntity ghost, final List<EntitySnapshot> snapshots) {
         final List<ReplayFrame> frames = new ArrayList<>(snapshots.size());
         for (final EntitySnapshot snapshot : snapshots) {
             snapshot.loadInto(ghost);
-            frames.add(new ReplayFrame(snapshot, ghost.position().add(anchorOffset)));
+            frames.add(new ReplayFrame(snapshot, ghost.position()));
         }
         return List.copyOf(frames);
     }
@@ -165,7 +167,6 @@ public final class GhostReplayClient {
         ghost.setNoGravity(true);
         ghost.noPhysics = true;
         ghost.setDeltaMovement(Vec3.ZERO);
-
         if (ghost instanceof Mob mob) {
             mob.setNoAi(true);
         }
@@ -190,17 +191,23 @@ public final class GhostReplayClient {
     private static final class ActiveGhost {
         private final LivingEntity entity;
         private final List<ReplayFrame> frames;
+        private final List<EntityReplayEvent> entityEvents;
         private final int ghostId;
         private final UUID ghostUuid;
         private final long firstGameTime;
-
         private int nextFrame;
+        private int nextEntityEvent;
         private long elapsedTicks;
         private int endHoldTicks;
 
-        private ActiveGhost(final LivingEntity entity, final List<ReplayFrame> frames, final int ghostId, final UUID ghostUuid) {
+        private ActiveGhost(final LivingEntity entity,
+                            final List<ReplayFrame> frames,
+                            final List<EntityReplayEvent> entityEvents,
+                            final int ghostId,
+                            final UUID ghostUuid) {
             this.entity = entity;
             this.frames = List.copyOf(frames);
+            this.entityEvents = List.copyOf(entityEvents);
             this.ghostId = ghostId;
             this.ghostUuid = ghostUuid;
             this.firstGameTime = this.frames.getFirst().snapshot().gameTime();
@@ -239,9 +246,10 @@ public final class GhostReplayClient {
             moveToPosition(this.entity, targetPosition);
             this.entity.setOldPosAndRot(previousPosition, previousYRot, previousXRot);
             applyGhostState(this.entity, this.ghostId, this.ghostUuid);
+            this.replayEventsThrough(this.elapsedTicks);
             this.entity.calculateEntityAnimation(this.entity instanceof FlyingAnimal);
 
-            if (this.nextFrame < this.frames.size()) {
+            if (this.nextFrame < this.frames.size() || this.nextEntityEvent < this.entityEvents.size()) {
                 this.elapsedTicks++;
                 return true;
             }
@@ -249,8 +257,19 @@ public final class GhostReplayClient {
             return this.endHoldTicks++ < END_HOLD_TICKS;
         }
 
+        private void replayEventsThrough(final long elapsedTicks) {
+            while (this.nextEntityEvent < this.entityEvents.size() && this.entityEventOffset(this.nextEntityEvent) <= elapsedTicks) {
+                this.entity.handleEntityEvent(this.entityEvents.get(this.nextEntityEvent).eventByte());
+                this.nextEntityEvent++;
+            }
+        }
+
         private long frameOffset(final int index) {
             return Math.max(0L, this.frames.get(index).snapshot().gameTime() - this.firstGameTime);
+        }
+
+        private long entityEventOffset(final int index) {
+            return Math.max(0L, this.entityEvents.get(index).gameTime() - this.firstGameTime);
         }
 
         private void remove(final ClientLevel level) {

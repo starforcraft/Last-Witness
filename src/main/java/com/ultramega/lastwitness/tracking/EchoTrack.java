@@ -7,8 +7,10 @@ public record EchoTrack(String id,
                         UUID sourceEntityId,
                         String sourceEntityType,
                         long timeOfDeath,
-                        List<EntitySnapshot> snapshots) {
+                        List<EntitySnapshot> snapshots,
+                        List<EntityReplayEvent> entityEvents) {
     public EchoTrack {
         snapshots = List.copyOf(snapshots);
+        entityEvents = List.copyOf(entityEvents);
     }
 }

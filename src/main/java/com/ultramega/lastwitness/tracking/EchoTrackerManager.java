@@ -17,10 +17,13 @@ public final class EchoTrackerManager {
     }
 
     public static void record(final MinecraftServer server, final LivingEntity entity) {
-        final TrackerStore store = getStore(server);
-        store.activeTrackers
-            .computeIfAbsent(entity.getUUID(), ignored -> new EchoTracker())
-            .record(entity);
+        activeTracker(server, entity).record(entity);
+    }
+
+    public static void recordEntityEvent(final MinecraftServer server,
+                                         final LivingEntity entity,
+                                         final byte eventId) {
+        activeTracker(server, entity).recordEntityEvent(entity, eventId);
     }
 
     public static EchoTrack complete(final MinecraftServer server, final LivingEntity entity) {
@@ -28,6 +31,7 @@ public final class EchoTrackerManager {
         final EchoTracker activeTracker = store.activeTrackers.remove(entity.getUUID());
         final EchoTracker tracker = activeTracker != null ? activeTracker : new EchoTracker();
         tracker.recordFinal(entity);
+
         final EchoTrack completedTrack = tracker.freeze(entity);
         store.completedTracks.put(completedTrack.id(), completedTrack);
         return completedTrack;
@@ -43,6 +47,10 @@ public final class EchoTrackerManager {
 
     public static Optional<EchoTrack> removeCompleted(final MinecraftServer server, final String trackerId) {
         return Optional.ofNullable(getStore(server).completedTracks.remove(trackerId));
+    }
+
+    private static EchoTracker activeTracker(final MinecraftServer server, final LivingEntity entity) {
+        return getStore(server).activeTrackers.computeIfAbsent(entity.getUUID(), ignored -> new EchoTracker());
     }
 
     private static TrackerStore getStore(final MinecraftServer server) {
