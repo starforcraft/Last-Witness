@@ -3,7 +3,7 @@ package com.ultramega.lastwitness;
 import com.ultramega.lastwitness.client.EchoMarkerActive;
 import com.ultramega.lastwitness.client.EchoTooltipHandler;
 import com.ultramega.lastwitness.client.GhostReplayClient;
-import com.ultramega.lastwitness.network.GhostReplayPayload;
+import com.ultramega.lastwitness.network.ReplayPayload;
 
 import net.minecraft.resources.Identifier;
 import net.neoforged.api.distmarker.Dist;
@@ -24,8 +24,6 @@ import static com.ultramega.lastwitness.LastWitness.MODID;
 public final class LastWitnessClient {
     public LastWitnessClient(final ModContainer container) {
         NeoForge.EVENT_BUS.addListener(EchoTooltipHandler::onItemTooltip);
-        NeoForge.EVENT_BUS.addListener(GhostReplayClient::onClientTick);
-        NeoForge.EVENT_BUS.addListener(GhostReplayClient::onInteraction);
 
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
     }
@@ -37,6 +35,6 @@ public final class LastWitnessClient {
 
     @SubscribeEvent
     public static void registerClientPayloadHandlers(final RegisterClientPayloadHandlersEvent event) {
-        event.register(GhostReplayPayload.TYPE, GhostReplayClient::handlePayload);
+        event.register(ReplayPayload.TYPE, GhostReplayClient::handlePayload);
     }
 }

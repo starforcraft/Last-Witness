@@ -2,7 +2,7 @@ package com.ultramega.lastwitness.events;
 
 import com.ultramega.lastwitness.Config;
 import com.ultramega.lastwitness.data.EchoOfPastData;
-import com.ultramega.lastwitness.network.GhostReplayPayload;
+import com.ultramega.lastwitness.network.ReplayPayload;
 import com.ultramega.lastwitness.registry.ModDataComponents;
 import com.ultramega.lastwitness.tracking.EchoTrack;
 import com.ultramega.lastwitness.tracking.EchoTrackerManager;
@@ -56,7 +56,7 @@ public final class EchoGhostHandler {
             itemEntity.getY(),
             itemEntity.getZ(),
             REPLAY_BROADCAST_RADIUS,
-            GhostReplayPayload.fromTrack(track.get())
+            ReplayPayload.fromTrack(track.get(), false)
         );
     }
 

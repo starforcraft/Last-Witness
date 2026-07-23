@@ -14,23 +14,26 @@ import net.minecraft.resources.Identifier;
 
 import static com.ultramega.lastwitness.LastWitness.MODID;
 
-public record GhostReplayPayload(String sourceEntityType, List<EntitySnapshot> snapshots, List<EntityReplayEvent> entityEvents) implements CustomPacketPayload {
-    public static final Type<GhostReplayPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(MODID, "ghost_replay"));
+public record ReplayPayload(String sourceEntityType, List<EntitySnapshot> snapshots, List<EntityReplayEvent> entityEvents, boolean firstPerson) implements CustomPacketPayload {
+    public static final Type<ReplayPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(MODID, "ghost_replay"));
 
     private static final int MAX_SNAPSHOTS = 100;
     private static final int MAX_ENTITY_EVENTS = 4096;
 
     private static final StreamCodec<ByteBuf, String> ENTITY_TYPE_STREAM_CODEC = ByteBufCodecs.stringUtf8(256);
     private static final StreamCodec<ByteBuf, List<EntitySnapshot>> SNAPSHOTS_STREAM_CODEC = EntitySnapshot.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_SNAPSHOTS));
-    private static final StreamCodec<ByteBuf, List<EntityReplayEvent>> ENTITY_EVENTS_STREAM_CODEC = EntityReplayEvent.STREAM_CODEC.apply(ByteBufCodecs.list(MAX_ENTITY_EVENTS));
+    private static final StreamCodec<ByteBuf, List<EntityReplayEvent>> ENTITY_EVENTS_STREAM_CODEC = EntityReplayEvent.STREAM_CODEC.apply(
+        ByteBufCodecs.list(MAX_ENTITY_EVENTS));
 
-    public static final StreamCodec<ByteBuf, GhostReplayPayload> STREAM_CODEC = StreamCodec.composite(
-        ENTITY_TYPE_STREAM_CODEC, GhostReplayPayload::sourceEntityType,
-        SNAPSHOTS_STREAM_CODEC, GhostReplayPayload::snapshots,
-        ENTITY_EVENTS_STREAM_CODEC, GhostReplayPayload::entityEvents, GhostReplayPayload::new
+    public static final StreamCodec<ByteBuf, ReplayPayload> STREAM_CODEC = StreamCodec.composite(
+        ENTITY_TYPE_STREAM_CODEC, ReplayPayload::sourceEntityType,
+        SNAPSHOTS_STREAM_CODEC, ReplayPayload::snapshots,
+        ENTITY_EVENTS_STREAM_CODEC, ReplayPayload::entityEvents,
+        ByteBufCodecs.BOOL, ReplayPayload::firstPerson,
+        ReplayPayload::new
     );
 
-    public GhostReplayPayload {
+    public ReplayPayload {
         snapshots = List.copyOf(snapshots);
         entityEvents = List.copyOf(entityEvents);
 
@@ -42,8 +45,8 @@ public record GhostReplayPayload(String sourceEntityType, List<EntitySnapshot> s
         }
     }
 
-    public static GhostReplayPayload fromTrack(final EchoTrack track) {
-        return new GhostReplayPayload(track.sourceEntityType(), track.snapshots(), track.entityEvents());
+    public static ReplayPayload fromTrack(final EchoTrack track, final boolean firstPerson) {
+        return new ReplayPayload(track.sourceEntityType(), track.snapshots(), track.entityEvents(), firstPerson);
     }
 
     @Override

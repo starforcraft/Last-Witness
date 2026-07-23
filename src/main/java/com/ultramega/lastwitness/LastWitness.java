@@ -4,7 +4,7 @@ import com.ultramega.lastwitness.events.EchoExtractionHandler;
 import com.ultramega.lastwitness.events.EchoGhostHandler;
 import com.ultramega.lastwitness.events.EchoSpawnHandler;
 import com.ultramega.lastwitness.events.EchoTrackingHandler;
-import com.ultramega.lastwitness.network.GhostReplayPayload;
+import com.ultramega.lastwitness.network.ReplayPayload;
 import com.ultramega.lastwitness.registry.ModAttachments;
 import com.ultramega.lastwitness.registry.ModCreativeTabs;
 import com.ultramega.lastwitness.registry.ModDataComponents;
@@ -47,6 +47,6 @@ public final class LastWitness {
     private static void registerPayloads(final RegisterPayloadHandlersEvent event) {
         final PayloadRegistrar registrar = event.registrar("1.0");
 
-        registrar.playToClient(GhostReplayPayload.TYPE, GhostReplayPayload.STREAM_CODEC);
+        registrar.playToClient(ReplayPayload.TYPE, ReplayPayload.STREAM_CODEC);
     }
 }

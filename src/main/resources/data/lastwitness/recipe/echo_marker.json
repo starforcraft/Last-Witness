@@ -2,13 +2,14 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    "GGG",
+    "GSG",
     "AEA",
-    "GGG"
+    "GSG"
   ],
   "key": {
     "G": "minecraft:glass_pane",
     "A": "minecraft:amethyst_shard",
+    "S": "minecraft:echo_shard",
     "E": "lastwitness:echo_of_past"
   },
   "result": {

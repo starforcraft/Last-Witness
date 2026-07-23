@@ -1,6 +1,6 @@
 package com.ultramega.lastwitness.client;
 
-import com.ultramega.lastwitness.network.GhostReplayPayload;
+import com.ultramega.lastwitness.network.ReplayPayload;
 import com.ultramega.lastwitness.tracking.EntityReplayEvent;
 import com.ultramega.lastwitness.tracking.EntitySnapshot;
 
@@ -11,8 +11,11 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.mojang.authlib.GameProfile;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.Entity;
@@ -21,52 +24,78 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.FlyingAnimal;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
+import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
+import static com.ultramega.lastwitness.LastWitness.MODID;
+
+@EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
 public final class GhostReplayClient {
     private static final String GHOST_TAG = "lastwitness_ghost";
     private static final int END_HOLD_TICKS = 20;
     private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-1_000_000_000);
-    private static final List<ActiveGhost> ACTIVE_GHOSTS = new ArrayList<>();
+    private static final List<ActiveReplay> ACTIVE_GHOSTS = new ArrayList<>();
+    private static ActiveReplay activeFirstPerson;
+    private static EntitySnapshot localPlayerBeforeHud;
 
     private static ClientLevel activeLevel;
 
     private GhostReplayClient() {
     }
 
-    public static void handlePayload(final GhostReplayPayload payload, final IPayloadContext context) {
-        startReplay(payload);
+    public static void handlePayload(final ReplayPayload payload, final IPayloadContext context) {
+        startReplay(payload.sourceEntityType(), payload.snapshots(), payload.entityEvents(), payload.firstPerson());
     }
 
+    @SubscribeEvent
     public static void onClientTick(final ClientTickEvent.Post event) {
+        restoreHudState();
+
         final Minecraft minecraft = Minecraft.getInstance();
         final ClientLevel level = minecraft.level;
         if (level == null) {
-            clearGhosts();
+            clearReplays();
             activeLevel = null;
             return;
         }
 
         if (activeLevel != level) {
-            clearGhosts();
+            clearReplays();
             activeLevel = level;
         }
 
-        final Iterator<ActiveGhost> iterator = ACTIVE_GHOSTS.iterator();
+        final Iterator<ActiveReplay> iterator = ACTIVE_GHOSTS.iterator();
         while (iterator.hasNext()) {
-            final ActiveGhost replay = iterator.next();
+            final ActiveReplay replay = iterator.next();
             if (!replay.tick(level)) {
                 replay.remove(level);
                 iterator.remove();
             }
         }
+
+        if (activeFirstPerson != null && !activeFirstPerson.tick(level)) {
+            activeFirstPerson.remove(level);
+            activeFirstPerson = null;
+        }
     }
 
+    @SubscribeEvent
     public static void onInteraction(final InputEvent.InteractionKeyMappingTriggered event) {
+        if (activeFirstPerson != null) {
+            event.setSwingHand(false);
+            event.setCanceled(true);
+            return;
+        }
+
         final Minecraft minecraft = Minecraft.getInstance();
         if (!(minecraft.hitResult instanceof EntityHitResult entityHit) || !isGhost(entityHit.getEntity())) {
             return;
@@ -76,14 +105,55 @@ public final class GhostReplayClient {
         event.setCanceled(true);
     }
 
-    private static void startReplay(final GhostReplayPayload payload) {
+    @SubscribeEvent
+    public static void onRenderGuiPre(final RenderGuiEvent.Pre event) {
+        restoreHudState();
+
         final Minecraft minecraft = Minecraft.getInstance();
-        final ClientLevel level = minecraft.level;
-        if (level == null || payload.snapshots().isEmpty()) {
+        if (activeFirstPerson == null
+            || minecraft.player == null
+            || !(activeFirstPerson.entity() instanceof Player)) {
             return;
         }
 
-        final Identifier entityTypeId = Identifier.tryParse(payload.sourceEntityType());
+        localPlayerBeforeHud = EntitySnapshot.capture(minecraft.player);
+        activeFirstPerson.hudSnapshot().loadInto(minecraft.player);
+    }
+
+    @SubscribeEvent
+    public static void onRenderGuiPost(final RenderGuiEvent.Post event) {
+        restoreHudState();
+    }
+
+    @SubscribeEvent
+    public static void onRenderFramePost(final RenderFrameEvent.Post event) {
+        restoreHudState();
+    }
+
+    private static void restoreHudState() {
+        if (localPlayerBeforeHud == null) {
+            return;
+        }
+
+        final EntitySnapshot snapshot = localPlayerBeforeHud;
+        localPlayerBeforeHud = null;
+        final Player player = Minecraft.getInstance().player;
+        if (player != null) {
+            snapshot.loadInto(player);
+        }
+    }
+
+    private static void startReplay(final String sourceEntityType,
+                                    final List<EntitySnapshot> snapshots,
+                                    final List<EntityReplayEvent> entityEvents,
+                                    final boolean firstPerson) {
+        final Minecraft minecraft = Minecraft.getInstance();
+        final ClientLevel level = minecraft.level;
+        if (level == null || snapshots.isEmpty()) {
+            return;
+        }
+
+        final Identifier entityTypeId = Identifier.tryParse(sourceEntityType);
         if (entityTypeId == null) {
             return;
         }
@@ -93,53 +163,82 @@ public final class GhostReplayClient {
             return;
         }
 
-        final Entity created = entityType.get().create(level, EntitySpawnReason.COMMAND);
-        if (!(created instanceof LivingEntity ghost)) {
+        final LivingEntity replayEntity = createReplayEntity(level, entityType.get());
+        if (replayEntity == null) {
             return;
         }
 
-        final int ghostId = NEXT_ENTITY_ID.getAndDecrement();
-        final UUID ghostUuid = UUID.randomUUID();
-        final List<EntitySnapshot> snapshots = payload.snapshots();
-        final List<ReplayFrame> replayFrames = buildReplayFrames(ghost, snapshots);
-        applyInitialFrame(ghost, replayFrames.getFirst(), ghostId, ghostUuid);
+        if (firstPerson && activeFirstPerson != null) {
+            activeFirstPerson.remove(level);
+            activeFirstPerson = null;
+        }
 
-        final ActiveGhost replay = new ActiveGhost(
-            ghost,
+        final int replayId = NEXT_ENTITY_ID.getAndDecrement();
+        final UUID replayUuid = UUID.randomUUID();
+        final List<ReplayFrame> replayFrames = buildReplayFrames(replayEntity, snapshots);
+        applyInitialFrame(replayEntity, replayFrames.getFirst(), replayId, replayUuid, !firstPerson);
+
+        final ActiveReplay replay = new ActiveReplay(
+            replayEntity,
             replayFrames,
-            payload.entityEvents(),
-            ghostId,
-            ghostUuid
+            entityEvents,
+            replayId,
+            replayUuid,
+            !firstPerson,
+            firstPerson ? minecraft.getCameraEntity() : null,
+            firstPerson ? minecraft.options.getCameraType() : null
         );
-        level.addEntity(ghost);
+        level.addEntity(replayEntity);
         replay.replayEventsThrough(0L);
-        ACTIVE_GHOSTS.add(replay);
+        if (firstPerson) {
+            activeFirstPerson = replay;
+            replay.enforceCamera();
+        } else {
+            ACTIVE_GHOSTS.add(replay);
+        }
         activeLevel = level;
     }
 
-    private static List<ReplayFrame> buildReplayFrames(final LivingEntity ghost, final List<EntitySnapshot> snapshots) {
+    private static LivingEntity createReplayEntity(final ClientLevel level, final EntityType<?> entityType) {
+        if (entityType == EntityType.PLAYER) {
+            return new RemotePlayer(level, new GameProfile(UUID.randomUUID(), "Echo"));
+        }
+
+        final Entity created = entityType.create(level, EntitySpawnReason.COMMAND);
+        return created instanceof LivingEntity living ? living : null;
+    }
+
+    private static List<ReplayFrame> buildReplayFrames(final LivingEntity replayEntity, final List<EntitySnapshot> snapshots) {
         final List<ReplayFrame> frames = new ArrayList<>(snapshots.size());
         for (final EntitySnapshot snapshot : snapshots) {
-            snapshot.loadInto(ghost);
-            frames.add(new ReplayFrame(snapshot, ghost.position()));
+            snapshot.loadInto(replayEntity);
+            frames.add(new ReplayFrame(snapshot, replayEntity.position()));
         }
         return List.copyOf(frames);
     }
 
-    private static void applyInitialFrame(final LivingEntity ghost, final ReplayFrame frame, final int ghostId, final UUID ghostUuid) {
-        frame.snapshot().loadInto(ghost);
-        moveToPosition(ghost, frame.position());
-        applyGhostState(ghost, ghostId, ghostUuid);
-        ghost.setOldPosAndRot(ghost.position(), ghost.getYRot(), ghost.getXRot());
+    private static void applyInitialFrame(final LivingEntity replayEntity,
+                                          final ReplayFrame frame,
+                                          final int replayId,
+                                          final UUID replayUuid,
+                                          final boolean externalGhost) {
+        frame.snapshot().loadInto(replayEntity);
+        moveToPosition(replayEntity, frame.position());
+        applyReplayState(replayEntity, replayId, replayUuid, externalGhost);
+        replayEntity.setOldPosAndRot(replayEntity.position(), replayEntity.getYRot(), replayEntity.getXRot());
     }
 
-    private static void applySnapshotState(final LivingEntity ghost, final ReplayFrame frame, final int ghostId, final UUID ghostUuid) {
-        frame.snapshot().loadInto(ghost);
-        applyGhostState(ghost, ghostId, ghostUuid);
+    private static void applySnapshotState(final LivingEntity replayEntity,
+                                           final ReplayFrame frame,
+                                           final int replayId,
+                                           final UUID replayUuid,
+                                           final boolean externalGhost) {
+        frame.snapshot().loadInto(replayEntity);
+        applyReplayState(replayEntity, replayId, replayUuid, externalGhost);
     }
 
-    private static void moveToPosition(final LivingEntity ghost, final Vec3 position) {
-        ghost.snapTo(position.x(), position.y(), position.z(), ghost.getYRot(), ghost.getXRot());
+    private static void moveToPosition(final LivingEntity replayEntity, final Vec3 position) {
+        replayEntity.snapTo(position.x(), position.y(), position.z(), replayEntity.getYRot(), replayEntity.getXRot());
     }
 
     private static Vec3 interpolatePosition(final ReplayFrame from,
@@ -152,22 +251,26 @@ public final class GhostReplayClient {
         return from.position().lerp(to.position(), progress);
     }
 
-    private static void applyGhostState(final LivingEntity ghost, final int ghostId, final UUID ghostUuid) {
-        ghost.setId(ghostId);
-        ghost.setUUID(ghostUuid);
-        ghost.addTag(GHOST_TAG);
-        ghost.setSilent(true);
-        ghost.setInvulnerable(true);
-        if (!ghost.isAlive()) {
-            ghost.setHealth(1.0F);
+    private static void applyReplayState(final LivingEntity replayEntity, final int replayId, final UUID replayUuid, final boolean externalGhost) {
+        replayEntity.setId(replayId);
+        replayEntity.setUUID(replayUuid);
+        if (externalGhost) {
+            replayEntity.addTag(GHOST_TAG);
+        } else {
+            replayEntity.removeTag(GHOST_TAG);
         }
-        ghost.setInvisible(false);
-        ghost.setGlowingTag(true);
-        ghost.setCustomNameVisible(false);
-        ghost.setNoGravity(true);
-        ghost.noPhysics = true;
-        ghost.setDeltaMovement(Vec3.ZERO);
-        if (ghost instanceof Mob mob) {
+        replayEntity.setSilent(true);
+        replayEntity.setInvulnerable(true);
+        if (!replayEntity.isAlive()) {
+            replayEntity.setHealth(1.0F);
+        }
+        replayEntity.setInvisible(false);
+        replayEntity.setGlowingTag(externalGhost);
+        replayEntity.setCustomNameVisible(false);
+        replayEntity.setNoGravity(true);
+        replayEntity.noPhysics = true;
+        replayEntity.setDeltaMovement(Vec3.ZERO);
+        if (replayEntity instanceof Mob mob) {
             mob.setNoAi(true);
         }
     }
@@ -176,43 +279,65 @@ public final class GhostReplayClient {
         return entity.entityTags().contains(GHOST_TAG);
     }
 
-    private static void clearGhosts() {
+    private static void clearReplays() {
+        restoreHudState();
         if (activeLevel != null) {
-            for (final ActiveGhost ghost : ACTIVE_GHOSTS) {
+            for (final ActiveReplay ghost : ACTIVE_GHOSTS) {
                 ghost.remove(activeLevel);
+            }
+            if (activeFirstPerson != null) {
+                activeFirstPerson.remove(activeLevel);
             }
         }
         ACTIVE_GHOSTS.clear();
+        activeFirstPerson = null;
     }
 
     private record ReplayFrame(EntitySnapshot snapshot, Vec3 position) {
     }
 
-    private static final class ActiveGhost {
+    private static final class ActiveReplay {
         private final LivingEntity entity;
         private final List<ReplayFrame> frames;
         private final List<EntityReplayEvent> entityEvents;
-        private final int ghostId;
-        private final UUID ghostUuid;
+        private final int replayId;
+        private final UUID replayUuid;
+        private final boolean externalGhost;
+        private final Entity previousCameraEntity;
+        private final CameraType previousCameraType;
         private final long firstGameTime;
         private int nextFrame;
         private int nextEntityEvent;
         private long elapsedTicks;
         private int endHoldTicks;
 
-        private ActiveGhost(final LivingEntity entity,
-                            final List<ReplayFrame> frames,
-                            final List<EntityReplayEvent> entityEvents,
-                            final int ghostId,
-                            final UUID ghostUuid) {
+        private ActiveReplay(final LivingEntity entity,
+                             final List<ReplayFrame> frames,
+                             final List<EntityReplayEvent> entityEvents,
+                             final int replayId,
+                             final UUID replayUuid,
+                             final boolean externalGhost,
+                             final Entity previousCameraEntity,
+                             final CameraType previousCameraType) {
             this.entity = entity;
             this.frames = List.copyOf(frames);
             this.entityEvents = List.copyOf(entityEvents);
-            this.ghostId = ghostId;
-            this.ghostUuid = ghostUuid;
+            this.replayId = replayId;
+            this.replayUuid = replayUuid;
+            this.externalGhost = externalGhost;
+            this.previousCameraEntity = previousCameraEntity;
+            this.previousCameraType = previousCameraType;
             this.firstGameTime = this.frames.getFirst().snapshot().gameTime();
             this.nextFrame = 1;
             this.elapsedTicks = 1L;
+        }
+
+        private LivingEntity entity() {
+            return this.entity;
+        }
+
+        private EntitySnapshot hudSnapshot() {
+            return this.frames.get(Math.max(0, this.nextFrame - 1)).snapshot();
         }
 
         private boolean tick(final ClientLevel level) {
@@ -225,7 +350,7 @@ public final class GhostReplayClient {
             final float previousXRot = this.entity.getXRot();
 
             while (this.nextFrame < this.frames.size() && this.frameOffset(this.nextFrame) <= this.elapsedTicks) {
-                applySnapshotState(this.entity, this.frames.get(this.nextFrame), this.ghostId, this.ghostUuid);
+                applySnapshotState(this.entity, this.frames.get(this.nextFrame), this.replayId, this.replayUuid, this.externalGhost);
                 this.nextFrame++;
             }
 
@@ -245,9 +370,10 @@ public final class GhostReplayClient {
 
             moveToPosition(this.entity, targetPosition);
             this.entity.setOldPosAndRot(previousPosition, previousYRot, previousXRot);
-            applyGhostState(this.entity, this.ghostId, this.ghostUuid);
+            applyReplayState(this.entity, this.replayId, this.replayUuid, this.externalGhost);
             this.replayEventsThrough(this.elapsedTicks);
             this.entity.calculateEntityAnimation(this.entity instanceof FlyingAnimal);
+            this.enforceCamera();
 
             if (this.nextFrame < this.frames.size() || this.nextEntityEvent < this.entityEvents.size()) {
                 this.elapsedTicks++;
@@ -255,6 +381,18 @@ public final class GhostReplayClient {
             }
 
             return this.endHoldTicks++ < END_HOLD_TICKS;
+        }
+
+        private void enforceCamera() {
+            if (this.externalGhost) {
+                return;
+            }
+
+            final Minecraft minecraft = Minecraft.getInstance();
+            minecraft.options.setCameraType(CameraType.FIRST_PERSON);
+            if (minecraft.getCameraEntity() != this.entity) {
+                minecraft.setCameraEntity(this.entity);
+            }
         }
 
         private void replayEventsThrough(final long elapsedTicks) {
@@ -273,6 +411,22 @@ public final class GhostReplayClient {
         }
 
         private void remove(final ClientLevel level) {
+            if (!this.externalGhost) {
+                restoreHudState();
+                final Minecraft minecraft = Minecraft.getInstance();
+                if (this.previousCameraType != null) {
+                    minecraft.options.setCameraType(this.previousCameraType);
+                }
+
+                final Entity fallback = minecraft.player;
+                final Entity camera = this.previousCameraEntity != null
+                    && !this.previousCameraEntity.isRemoved()
+                    && this.previousCameraEntity.level() == minecraft.level
+                    ? this.previousCameraEntity
+                    : fallback;
+                minecraft.setCameraEntity(camera);
+            }
+
             if (!this.entity.isRemoved()) {
                 level.removeEntity(this.entity.getId(), Entity.RemovalReason.DISCARDED);
             }
