@@ -11,13 +11,13 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.mojang.authlib.GameProfile;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
@@ -53,7 +53,7 @@ public final class GhostReplayClient {
     }
 
     public static void handlePayload(final ReplayPayload payload, final IPayloadContext context) {
-        startReplay(payload.sourceEntityType(), payload.snapshots(), payload.entityEvents(), payload.firstPerson());
+        startReplay(payload.sourceEntityId(), payload.sourceEntityType(), payload.snapshots(), payload.entityEvents(), payload.firstPerson());
     }
 
     @SubscribeEvent
@@ -112,7 +112,7 @@ public final class GhostReplayClient {
         final Minecraft minecraft = Minecraft.getInstance();
         if (activeFirstPerson == null
             || minecraft.player == null
-            || !(activeFirstPerson.entity() instanceof Player)) {
+            || !(activeFirstPerson.entity() instanceof Avatar)) {
             return;
         }
 
@@ -143,7 +143,8 @@ public final class GhostReplayClient {
         }
     }
 
-    private static void startReplay(final String sourceEntityType,
+    private static void startReplay(final UUID sourceEntityId,
+                                    final String sourceEntityType,
                                     final List<EntitySnapshot> snapshots,
                                     final List<EntityReplayEvent> entityEvents,
                                     final boolean firstPerson) {
@@ -163,7 +164,7 @@ public final class GhostReplayClient {
             return;
         }
 
-        final LivingEntity replayEntity = createReplayEntity(level, entityType.get());
+        final LivingEntity replayEntity = createReplayEntity(level, entityType.get(), sourceEntityId);
         if (replayEntity == null) {
             return;
         }
@@ -199,9 +200,9 @@ public final class GhostReplayClient {
         activeLevel = level;
     }
 
-    private static LivingEntity createReplayEntity(final ClientLevel level, final EntityType<?> entityType) {
-        if (entityType == EntityType.PLAYER) {
-            return new RemotePlayer(level, new GameProfile(UUID.randomUUID(), "Echo"));
+    private static LivingEntity createReplayEntity(final ClientLevel level, final EntityType<?> entityType, final UUID sourceEntityId) {
+        if (entityType == EntityType.PLAYER) { //TODO: show the correct skin
+            return new ReplayMannequin(level, sourceEntityId);
         }
 
         final Entity created = entityType.create(level, EntitySpawnReason.COMMAND);
@@ -212,7 +213,14 @@ public final class GhostReplayClient {
         final List<ReplayFrame> frames = new ArrayList<>(snapshots.size());
         for (final EntitySnapshot snapshot : snapshots) {
             snapshot.loadInto(replayEntity);
-            frames.add(new ReplayFrame(snapshot, replayEntity.position()));
+            frames.add(new ReplayFrame(
+                snapshot,
+                replayEntity.position(),
+                replayEntity.getYRot(),
+                replayEntity.getXRot(),
+                replayEntity.yBodyRot,
+                replayEntity.yHeadRot
+            ));
         }
         return List.copyOf(frames);
     }
@@ -223,9 +231,11 @@ public final class GhostReplayClient {
                                           final UUID replayUuid,
                                           final boolean externalGhost) {
         frame.snapshot().loadInto(replayEntity);
-        moveToPosition(replayEntity, frame.position());
+        applyFrameTransform(replayEntity, frame);
         applyReplayState(replayEntity, replayId, replayUuid, externalGhost);
         replayEntity.setOldPosAndRot(replayEntity.position(), replayEntity.getYRot(), replayEntity.getXRot());
+        replayEntity.yBodyRotO = replayEntity.yBodyRot;
+        replayEntity.yHeadRotO = replayEntity.yHeadRot;
     }
 
     private static void applySnapshotState(final LivingEntity replayEntity,
@@ -237,18 +247,31 @@ public final class GhostReplayClient {
         applyReplayState(replayEntity, replayId, replayUuid, externalGhost);
     }
 
-    private static void moveToPosition(final LivingEntity replayEntity, final Vec3 position) {
-        replayEntity.snapTo(position.x(), position.y(), position.z(), replayEntity.getYRot(), replayEntity.getXRot());
+    private static void applyFrameTransform(final LivingEntity replayEntity, final ReplayFrame frame) {
+        final Vec3 position = frame.position();
+        replayEntity.snapTo(position.x(), position.y(), position.z(), frame.yRot(), frame.xRot());
+        replayEntity.setYBodyRot(frame.yBodyRot());
+        replayEntity.setYHeadRot(frame.yHeadRot());
     }
 
-    private static Vec3 interpolatePosition(final ReplayFrame from,
-                                            final ReplayFrame to,
-                                            final long fromOffset,
-                                            final long toOffset,
-                                            final long elapsedTicks) {
+    private static void applyInterpolatedFrameTransform(final LivingEntity replayEntity,
+                                                        final ReplayFrame from,
+                                                        final ReplayFrame to,
+                                                        final long fromOffset,
+                                                        final long toOffset,
+                                                        final long elapsedTicks) {
         final long duration = Math.max(1L, toOffset - fromOffset);
-        final double progress = Math.clamp((double) (elapsedTicks - fromOffset) / duration, 0.0D, 1.0D);
-        return from.position().lerp(to.position(), progress);
+        final float progress = (float) Math.clamp((double) (elapsedTicks - fromOffset) / duration, 0.0D, 1.0D);
+        final Vec3 position = from.position().lerp(to.position(), progress);
+
+        final float yRot = Mth.rotLerp(progress, from.yRot(), to.yRot());
+        final float xRot = Mth.lerp(progress, from.xRot(), to.xRot());
+        final float yBodyRot = Mth.rotLerp(progress, from.yBodyRot(), to.yBodyRot());
+        final float yHeadRot = Mth.rotLerp(progress, from.yHeadRot(), to.yHeadRot());
+
+        replayEntity.snapTo(position.x(), position.y(), position.z(), yRot, xRot);
+        replayEntity.setYBodyRot(yBodyRot);
+        replayEntity.setYHeadRot(yHeadRot);
     }
 
     private static void applyReplayState(final LivingEntity replayEntity, final int replayId, final UUID replayUuid, final boolean externalGhost) {
@@ -293,7 +316,12 @@ public final class GhostReplayClient {
         activeFirstPerson = null;
     }
 
-    private record ReplayFrame(EntitySnapshot snapshot, Vec3 position) {
+    private record ReplayFrame(EntitySnapshot snapshot,
+                               Vec3 position,
+                               float yRot,
+                               float xRot,
+                               float yBodyRot,
+                               float yHeadRot) {
     }
 
     private static final class ActiveReplay {
@@ -340,6 +368,7 @@ public final class GhostReplayClient {
             return this.frames.get(Math.max(0, this.nextFrame - 1)).snapshot();
         }
 
+        // TODO: small render distance, heavy fog, distortion filter, short appearance and glow if an outside entity hurts the replay entity
         private boolean tick(final ClientLevel level) {
             if (this.entity.isRemoved() || this.entity.level() != level) {
                 return false;
@@ -348,6 +377,8 @@ public final class GhostReplayClient {
             final Vec3 previousPosition = this.entity.position();
             final float previousYRot = this.entity.getYRot();
             final float previousXRot = this.entity.getXRot();
+            final float previousYBodyRot = this.entity.yBodyRot;
+            final float previousYHeadRot = this.entity.yHeadRot;
 
             while (this.nextFrame < this.frames.size() && this.frameOffset(this.nextFrame) <= this.elapsedTicks) {
                 applySnapshotState(this.entity, this.frames.get(this.nextFrame), this.replayId, this.replayUuid, this.externalGhost);
@@ -355,9 +386,9 @@ public final class GhostReplayClient {
             }
 
             final ReplayFrame currentFrame = this.frames.get(this.nextFrame - 1);
-            final Vec3 targetPosition;
             if (this.nextFrame < this.frames.size()) {
-                targetPosition = interpolatePosition(
+                applyInterpolatedFrameTransform(
+                    this.entity,
                     currentFrame,
                     this.frames.get(this.nextFrame),
                     this.frameOffset(this.nextFrame - 1),
@@ -365,11 +396,12 @@ public final class GhostReplayClient {
                     this.elapsedTicks
                 );
             } else {
-                targetPosition = currentFrame.position();
+                applyFrameTransform(this.entity, currentFrame);
             }
 
-            moveToPosition(this.entity, targetPosition);
             this.entity.setOldPosAndRot(previousPosition, previousYRot, previousXRot);
+            this.entity.yBodyRotO = previousYBodyRot;
+            this.entity.yHeadRotO = previousYHeadRot;
             applyReplayState(this.entity, this.replayId, this.replayUuid, this.externalGhost);
             this.replayEventsThrough(this.elapsedTicks);
             this.entity.calculateEntityAnimation(this.entity instanceof FlyingAnimal);

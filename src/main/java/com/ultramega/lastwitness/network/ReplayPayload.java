@@ -5,8 +5,10 @@ import com.ultramega.lastwitness.tracking.EntityReplayEvent;
 import com.ultramega.lastwitness.tracking.EntitySnapshot;
 
 import java.util.List;
+import java.util.UUID;
 
 import io.netty.buffer.ByteBuf;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -14,7 +16,11 @@ import net.minecraft.resources.Identifier;
 
 import static com.ultramega.lastwitness.LastWitness.MODID;
 
-public record ReplayPayload(String sourceEntityType, List<EntitySnapshot> snapshots, List<EntityReplayEvent> entityEvents, boolean firstPerson) implements CustomPacketPayload {
+public record ReplayPayload(UUID sourceEntityId,
+                            String sourceEntityType,
+                            List<EntitySnapshot> snapshots,
+                            List<EntityReplayEvent> entityEvents,
+                            boolean firstPerson) implements CustomPacketPayload {
     public static final Type<ReplayPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(MODID, "ghost_replay"));
 
     private static final int MAX_SNAPSHOTS = 100;
@@ -26,6 +32,7 @@ public record ReplayPayload(String sourceEntityType, List<EntitySnapshot> snapsh
         ByteBufCodecs.list(MAX_ENTITY_EVENTS));
 
     public static final StreamCodec<ByteBuf, ReplayPayload> STREAM_CODEC = StreamCodec.composite(
+        UUIDUtil.STREAM_CODEC, ReplayPayload::sourceEntityId,
         ENTITY_TYPE_STREAM_CODEC, ReplayPayload::sourceEntityType,
         SNAPSHOTS_STREAM_CODEC, ReplayPayload::snapshots,
         ENTITY_EVENTS_STREAM_CODEC, ReplayPayload::entityEvents,
@@ -46,7 +53,7 @@ public record ReplayPayload(String sourceEntityType, List<EntitySnapshot> snapsh
     }
 
     public static ReplayPayload fromTrack(final EchoTrack track, final boolean firstPerson) {
-        return new ReplayPayload(track.sourceEntityType(), track.snapshots(), track.entityEvents(), firstPerson);
+        return new ReplayPayload(track.sourceEntityId(), track.sourceEntityType(), track.snapshots(), track.entityEvents(), firstPerson);
     }
 
     @Override
