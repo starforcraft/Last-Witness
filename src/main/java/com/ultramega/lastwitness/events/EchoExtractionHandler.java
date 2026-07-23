@@ -8,12 +8,18 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 
+import static com.ultramega.lastwitness.LastWitness.MODID;
+
+@EventBusSubscriber(modid = MODID)
 public final class EchoExtractionHandler {
     private EchoExtractionHandler() {
     }
 
+    @SubscribeEvent
     public static void onItemEntityTick(final EntityTickEvent.Pre event) {
         if (!(event.getEntity() instanceof ItemEntity itemEntity)
             || !(itemEntity.level() instanceof ServerLevel serverLevel)

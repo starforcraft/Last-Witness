@@ -13,10 +13,15 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.ItemEntityPickupEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 
+import static com.ultramega.lastwitness.LastWitness.MODID;
+
+@EventBusSubscriber(modid = MODID)
 public final class EchoGhostHandler {
     private static final int REPLAY_CHECK_INTERVAL_TICKS = 5 * 20;
     private static final double REPLAY_BROADCAST_RADIUS = 48.0D;
@@ -24,6 +29,7 @@ public final class EchoGhostHandler {
     private EchoGhostHandler() {
     }
 
+    @SubscribeEvent
     public static void onItemEntityTick(final EntityTickEvent.Post event) {
         if (!(event.getEntity() instanceof ItemEntity itemEntity)
             || !(itemEntity.level() instanceof ServerLevel serverLevel)
@@ -60,6 +66,7 @@ public final class EchoGhostHandler {
         );
     }
 
+    @SubscribeEvent
     public static void onItemPickup(final ItemEntityPickupEvent.Post event) {
         final EchoOfPastData originalEcho = event.getOriginalStack().get(ModDataComponents.ECHO_OF_PAST.get());
         if (originalEcho == null || !originalEcho.untouched()) {

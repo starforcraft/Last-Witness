@@ -5,12 +5,18 @@ import com.ultramega.lastwitness.registry.ModAttachments;
 
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 
+import static com.ultramega.lastwitness.LastWitness.MODID;
+
+@EventBusSubscriber(modid = MODID)
 public final class EchoSpawnHandler {
     private EchoSpawnHandler() {
     }
 
+    @SubscribeEvent
     public static void onEntityJoinLevel(final EntityJoinLevelEvent event) {
         if (event.getLevel().isClientSide()) {
             return;

@@ -5,8 +5,10 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.util.ProblemReporter;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Pose;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 
@@ -24,6 +26,8 @@ public record EntitySnapshot(long gameTime, CompoundTag entityData) {
     private static final String ON_GROUND_KEY = "LastWitnessOnGround";
     private static final String SPRINTING_KEY = "LastWitnessSprinting";
     private static final String SWIMMING_KEY = "LastWitnessSwimming";
+    private static final String MAIN_HAND_ITEM_KEY = "LastWitnessMainHandItem";
+    private static final String OFF_HAND_ITEM_KEY = "LastWitnessOffHandItem";
 
     public EntitySnapshot {
         entityData = entityData.copy();
@@ -38,13 +42,15 @@ public record EntitySnapshot(long gameTime, CompoundTag entityData) {
         final TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, entity.registryAccess());
         entity.saveWithoutId(output);
 
-        // These are not included in entity.saveWithoutId(), so we have to save and load them ourselves
+        // These are not included in entity.saveWithoutId() or not included in the Player reliably, so we have to save and load them ourselves
         output.putFloat(BODY_Y_ROT_KEY, entity.yBodyRot);
         output.putFloat(HEAD_Y_ROT_KEY, entity.yHeadRot);
         output.putString(POSE_KEY, entity.getPose().name());
         output.putBoolean(ON_GROUND_KEY, entity.onGround());
         output.putBoolean(SPRINTING_KEY, entity.isSprinting());
         output.putBoolean(SWIMMING_KEY, entity.isSwimming());
+        output.store(MAIN_HAND_ITEM_KEY, ItemStack.OPTIONAL_CODEC, entity.getMainHandItem().copy());
+        output.store(OFF_HAND_ITEM_KEY, ItemStack.OPTIONAL_CODEC, entity.getOffhandItem().copy());
 
         final CompoundTag entityData = output.buildResult();
         entityData.remove(UUID_KEY);
@@ -62,6 +68,11 @@ public record EntitySnapshot(long gameTime, CompoundTag entityData) {
         entity.setOnGround(input.getBooleanOr(ON_GROUND_KEY, entity.onGround()));
         entity.setSprinting(input.getBooleanOr(SPRINTING_KEY, entity.isSprinting()));
         entity.setSwimming(input.getBooleanOr(SWIMMING_KEY, entity.isSwimming()));
+
+        input.read(MAIN_HAND_ITEM_KEY, ItemStack.OPTIONAL_CODEC)
+            .ifPresent(stack -> entity.setItemInHand(InteractionHand.MAIN_HAND, stack.copy()));
+        input.read(OFF_HAND_ITEM_KEY, ItemStack.OPTIONAL_CODEC)
+            .ifPresent(stack -> entity.setItemInHand(InteractionHand.OFF_HAND, stack.copy()));
     }
 
     private static Pose parsePose(final String poseName) {

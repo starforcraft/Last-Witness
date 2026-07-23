@@ -14,16 +14,20 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(ServerLevel.class)
-abstract class ServerLevelMixin {
+public abstract class ServerLevelMixin {
     @Inject(method = "broadcastEntityEvent", at = @At("HEAD"))
     private void lastwitness$recordEntityEvent(final Entity entity, final byte event, final CallbackInfo callbackInfo) {
-        if (!(entity instanceof LivingEntity livingEntity)
-            || !livingEntity.hasData(ModAttachments.CARRIES_ECHO)
-            || !livingEntity.getData(ModAttachments.CARRIES_ECHO)) {
+        if (!(entity instanceof LivingEntity livingEntity)) {
             return;
         }
 
-        EchoTrackerManager.recordEntityEvent(this.getServer(), livingEntity, event);
+        final MinecraftServer server = this.getServer();
+
+        if (livingEntity.hasData(ModAttachments.CARRIES_ECHO) && livingEntity.getData(ModAttachments.CARRIES_ECHO)) {
+            EchoTrackerManager.recordEntityEvent(server, livingEntity, event);
+        }
+
+        EchoTrackerManager.recordOutsideEntityEvent(server, livingEntity, event);
     }
 
     @Shadow

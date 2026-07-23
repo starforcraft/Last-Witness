@@ -9,7 +9,6 @@ displayURL="${mod_url}"
 authors="${mod_authors}"
 description='''${mod_description}'''
 
-
 [[mixins]]
 config="${mod_id}.mixins.json"
 

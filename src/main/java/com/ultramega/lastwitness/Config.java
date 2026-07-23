@@ -15,7 +15,7 @@ public final class Config {
 
     public static final ModConfigSpec.IntValue ECHO_TRACK_SECONDS = BUILDER
         .comment("The amount of seconds that should be tracked to the past")
-        .defineInRange("echoTrackSeconds", 5, 1, 120);
+        .defineInRange("echoTrackSeconds", 10, 1, 120);
 
     public static final ModConfigSpec.DoubleValue GHOST_REPLAY_CHANCE = BUILDER
             .comment("Chance every five seconds for an untouched echo item resting on the ground to manifest its recording (0.0 to 1.0)")
