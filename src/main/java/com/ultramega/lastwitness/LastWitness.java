@@ -5,6 +5,7 @@ import com.ultramega.lastwitness.registry.ModAttachments;
 import com.ultramega.lastwitness.registry.ModCreativeTabs;
 import com.ultramega.lastwitness.registry.ModDataComponents;
 import com.ultramega.lastwitness.registry.ModItems;
+import com.ultramega.lastwitness.registry.ModSounds;
 
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
@@ -25,6 +26,7 @@ public final class LastWitness {
         ModAttachments.ATTACHMENT_TYPES.register(modEventBus);
         ModItems.ITEMS.register(modEventBus);
         ModCreativeTabs.CREATIVE_MODE_TABS.register(modEventBus);
+        ModSounds.SOUND_EVENTS.register(modEventBus);
 
         modEventBus.addListener(LastWitness::registerPayloads);
 

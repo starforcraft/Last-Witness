@@ -46,10 +46,7 @@ public record OutsideEntityReplay(EntityData sourceEntity, List<EntitySnapshot> 
         long finalGameTime = this.snapshots.getLast().gameTime();
 
         if (!this.entityEvents.isEmpty()) {
-            finalGameTime = Math.max(
-                finalGameTime,
-                this.entityEvents.getLast().gameTime()
-            );
+            finalGameTime = Math.max(finalGameTime, this.entityEvents.getLast().gameTime());
         }
 
         return Math.max(0L, finalGameTime - firstGameTime);

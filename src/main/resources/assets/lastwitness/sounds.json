@@ -1,0 +1,16 @@
+{
+  "sudden": {
+    "sounds": [
+      "lastwitness:sudden"
+    ]
+  },
+  "ghost_environment": {
+    "sounds": [
+      {
+        "name": "lastwitness:ghost_environment",
+        "stream": true,
+        "preload": true
+      }
+    ]
+  }
+}

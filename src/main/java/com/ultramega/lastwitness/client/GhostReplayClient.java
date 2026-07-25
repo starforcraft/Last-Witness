@@ -4,6 +4,7 @@ import com.ultramega.lastwitness.data.OutsideEntityEvent;
 import com.ultramega.lastwitness.data.OutsideEntityReplay;
 import com.ultramega.lastwitness.mixin.client.ItemInHandRendererAccessor;
 import com.ultramega.lastwitness.network.ReplayPayload;
+import com.ultramega.lastwitness.registry.ModSounds;
 import com.ultramega.lastwitness.tracking.EntityReplayEvent;
 import com.ultramega.lastwitness.tracking.EntitySnapshot;
 
@@ -16,13 +17,20 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
 
+import com.google.common.reflect.TypeToken;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.entity.LivingEntityRenderer;
+import net.minecraft.client.renderer.entity.state.LivingEntityRenderState;
 import net.minecraft.client.renderer.fog.FogData;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.Mth;
+import net.minecraft.util.RandomSource;
+import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.Entity;
@@ -42,21 +50,28 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.neoforge.client.event.RenderLivingEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
+import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import static com.ultramega.lastwitness.LastWitness.MODID;
 
 @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
-public final class GhostReplayClient { //TODO: when in first person mode hide any entity/player and only show them for 2 ticks every seconds
+public final class GhostReplayClient {
     private static final String GHOST_TAG = "lastwitness_ghost";
-    private static final int END_HOLD_TICKS = 10;
     private static final float REPLAY_FOG_NEAR = 0.25F;
     private static final float REPLAY_FOG_FAR = 5.0F;
     private static final float CAMERA_YAW_WOBBLE = 0.45F;
     private static final float CAMERA_PITCH_WOBBLE = 0.35F;
     private static final float CAMERA_ROLL_WOBBLE = 1.65F;
     private static final float FOV_WOBBLE = 2.5F;
+    private static final int ENTITY_RENDER_CHECK_INTERVAL_TICKS = 20;
+    private static final int ENTITY_RENDER_VISIBLE_DURATION_TICKS = 2;
+    private static final float ENTITY_RENDER_REVEAL_CHANCE = 0.5F;
+
+    private static final ContextKey<Boolean> GHOST_RENDER_DATA = new ContextKey<>(Identifier.fromNamespaceAndPath(MODID, "is_ghost"));
+    private static final RandomSource ENTITY_RENDER_RANDOM = RandomSource.create();
     private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-1_000_000_000);
     private static final List<ActiveReplay> ACTIVE_GHOSTS = new ArrayList<>();
 
@@ -77,7 +92,22 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
     }
 
     @SubscribeEvent
+    public static void registerRenderStateModifiers(final RegisterRenderStateModifiersEvent event) {
+        event.registerEntityModifier(
+            new TypeToken<LivingEntityRenderer<LivingEntity, LivingEntityRenderState, ?>>() {
+            },
+            (entity, state) -> {
+                state.setRenderData(GHOST_RENDER_DATA, isGhost(entity));
+            }
+        );
+    }
+
+    @SubscribeEvent
     public static void onClientTick(final ClientTickEvent.Post event) {
+        if (Minecraft.getInstance().isPaused()) {
+            return;
+        }
+
         restoreHudState();
         restoreFirstPersonHandState();
         final ClientLevel level = Minecraft.getInstance().level;
@@ -212,7 +242,7 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
         }
 
         localPlayerBeforeHud = EntitySnapshot.capture(minecraft.player);
-        activeFirstPerson.hudSnapshot().loadInto(minecraft.player);
+        activeFirstPerson.snapshot().loadInto(minecraft.player);
     }
 
     @SubscribeEvent
@@ -224,6 +254,18 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
     public static void onRenderFramePost(final RenderFrameEvent.Post event) {
         restoreHudState();
         restoreFirstPersonHandState();
+    }
+
+    @SubscribeEvent
+    public static void onRenderEntityPre(final RenderLivingEvent.Pre<?, ?, ?> event) {
+        final ActiveReplay replay = activeFirstPerson;
+        if (replay == null || event.getRenderState().getRenderDataOrDefault(GHOST_RENDER_DATA, false)) {
+            return;
+        }
+
+        if (!replay.entitiesVisible()) {
+            event.setCanceled(true);
+        }
     }
 
     private static void restoreHudState() {
@@ -306,6 +348,7 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
             firstPerson ? minecraft.options.getCameraType() : null
         );
         level.addEntity(replayEntity);
+        playSound(replayEntity, ModSounds.GHOST_ENVIRONMENT.value(), SoundSource.AMBIENT);
         replay.tickOutsideEntities(level, 0L);
         replay.replayEventsThrough(0L);
         if (firstPerson) {
@@ -319,7 +362,7 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
 
     private static LivingEntity createReplayEntity(final ClientLevel level, final EntityType<?> entityType, final UUID sourceEntityId) {
         if (entityType == EntityType.PLAYER) {
-            return new ReplayMannequin(level, sourceEntityId);
+            return new ReplayMannequin(level, sourceEntityId); // TODO: pre-load so the skin isn't default and then suddently changes
         }
 
         final Entity created = entityType.create(level, EntitySpawnReason.COMMAND);
@@ -434,6 +477,10 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
         activeFirstPerson = null;
     }
 
+    public static void playSound(final Entity entity, final SoundEvent sound, final SoundSource source) {
+        Minecraft.getInstance().getSoundManager().play(new EntityFadingBoundSoundInstance(sound, source, 2.0f, 1.0f, entity, entity.getRandom().nextLong()));
+    }
+
     private record FirstPersonHandState(ItemStack playerMainHand,
                                         ItemStack playerOffHand,
                                         ItemStack rendererMainHand,
@@ -465,7 +512,8 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
         private int nextEntityEvent;
         private int nextOutsideReplay;
         private long elapsedTicks;
-        private int endHoldTicks;
+        private long entityVisibilityTick;
+        private long entitiesVisibleUntilTick = Long.MIN_VALUE;
 
         private ActiveReplay(final LivingEntity entity,
                              final List<ReplayFrame> frames,
@@ -484,9 +532,7 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
             this.previousCameraEntity = previousCameraEntity;
             this.previousCameraType = previousCameraType;
             this.firstGameTime = this.frames.getFirst().snapshot().gameTime();
-            this.scheduledOutsideReplays = asExternalGhost
-                ? List.of()
-                : this.buildOutsideReplaySchedule();
+            this.scheduledOutsideReplays = asExternalGhost ? List.of() : this.buildOutsideReplaySchedule();
             this.nextFrame = 1;
             this.elapsedTicks = 1L;
         }
@@ -495,18 +541,24 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
             return this.entity;
         }
 
-        private EntitySnapshot hudSnapshot() {
+        private EntitySnapshot snapshot() {
             return this.frames.get(Math.max(0, this.nextFrame - 1)).snapshot();
         }
 
         private double visualTime(final double partialTick) {
-            return this.elapsedTicks + this.endHoldTicks + partialTick;
+            return this.elapsedTicks + partialTick;
+        }
+
+        private boolean entitiesVisible() {
+            return this.entityVisibilityTick < this.entitiesVisibleUntilTick;
         }
 
         private boolean tick(final ClientLevel level) {
             if (this.entity.isRemoved() || this.entity.level() != level) {
                 return false;
             }
+
+            this.tickEntityVisibility();
 
             this.tickOutsideEntities(level, this.elapsedTicks);
 
@@ -551,7 +603,28 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
                 return true;
             }
 
-            return this.endHoldTicks++ < END_HOLD_TICKS;
+            return false;
+        }
+
+        private void tickEntityVisibility() {
+            if (this.asExternalGhost) {
+                return;
+            }
+
+            this.entityVisibilityTick++;
+
+            if (this.entitiesVisible()) {
+                return;
+            }
+
+            if (this.entityVisibilityTick % ENTITY_RENDER_CHECK_INTERVAL_TICKS != 0
+                || ENTITY_RENDER_RANDOM.nextFloat() >= ENTITY_RENDER_REVEAL_CHANCE) {
+                return;
+            }
+
+            this.entitiesVisibleUntilTick = this.entityVisibilityTick + ENTITY_RENDER_VISIBLE_DURATION_TICKS;
+
+            playSound(this.entity, ModSounds.SUDDEN.value(), SoundSource.MASTER);
         }
 
         private void enforceCamera() {
@@ -645,6 +718,7 @@ public final class GhostReplayClient { //TODO: when in first person mode hide an
             final List<ReplayFrame> replayFrames = buildReplayFrames(replayEntity, sourceReplay.snapshots());
             applyInitialFrame(replayEntity, replayFrames.getFirst(), replayId, replayUuid, true);
             level.addEntity(replayEntity);
+            playSound(replayEntity, ModSounds.SUDDEN.value(), SoundSource.MASTER);
             this.outsideReplays.add(new ActiveOutsideReplay(
                 sourceEntityId,
                 replayEntity,

@@ -15,6 +15,7 @@ import java.util.WeakHashMap;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.entity.LivingEntity;
 
+// TODO: save the echo trackers as long as the corresponding item exists
 public final class EchoTrackerManager {
     private static final Map<MinecraftServer, TrackerStore> STORES = Collections.synchronizedMap(new WeakHashMap<>());
 
