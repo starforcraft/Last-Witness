@@ -362,7 +362,7 @@ public final class GhostReplayClient {
 
     private static LivingEntity createReplayEntity(final ClientLevel level, final EntityType<?> entityType, final UUID sourceEntityId) {
         if (entityType == EntityType.PLAYER) {
-            return new ReplayMannequin(level, sourceEntityId); // TODO: pre-load so the skin isn't default and then suddently changes
+            return new ReplayMannequin(level, sourceEntityId);
         }
 
         final Entity created = entityType.create(level, EntitySpawnReason.COMMAND);
@@ -447,7 +447,7 @@ public final class GhostReplayClient {
         if (!replayEntity.isAlive()) {
             replayEntity.setHealth(1.0F);
         }
-        replayEntity.setInvisible(false);
+        replayEntity.setInvisible(replayEntity instanceof ReplayMannequin mannequin && !mannequin.isSkinReady());
         replayEntity.setGlowingTag(externalGhost); //TODO: glowing doesn't work
         replayEntity.setCustomNameVisible(false);
         replayEntity.setNoGravity(true);
