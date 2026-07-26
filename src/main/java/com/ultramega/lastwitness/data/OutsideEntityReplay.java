@@ -5,6 +5,8 @@ import com.ultramega.lastwitness.tracking.EntitySnapshot;
 import java.util.List;
 import java.util.Objects;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.network.codec.ByteBufCodecs;
 import net.minecraft.network.codec.StreamCodec;
@@ -24,6 +26,12 @@ public record OutsideEntityReplay(EntityData sourceEntity, List<EntitySnapshot> 
         ENTITY_EVENTS_STREAM_CODEC, OutsideEntityReplay::entityEvents,
         OutsideEntityReplay::new
     );
+
+    public static final Codec<OutsideEntityReplay> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        EntityData.CODEC.fieldOf("sourceEntity").forGetter(OutsideEntityReplay::sourceEntity),
+        EntitySnapshot.CODEC.listOf(1, OutsideEntityReplay.MAX_SNAPSHOTS).fieldOf("snapshots").forGetter(OutsideEntityReplay::snapshots),
+        OutsideEntityEvent.CODEC.listOf(0, OutsideEntityReplay.MAX_ENTITY_EVENTS).fieldOf("entityEvents").forGetter(OutsideEntityReplay::entityEvents)
+    ).apply(instance, OutsideEntityReplay::new));
 
     public OutsideEntityReplay {
         Objects.requireNonNull(sourceEntity, "sourceEntity");

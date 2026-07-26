@@ -1,7 +1,5 @@
 package com.ultramega.lastwitness.client;
 
-import javax.annotation.Nullable;
-
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;

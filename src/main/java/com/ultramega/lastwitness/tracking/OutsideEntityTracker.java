@@ -8,11 +8,22 @@ import java.util.ArrayDeque;
 import java.util.List;
 import java.util.UUID;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.LivingEntity;
 
 final class OutsideEntityTracker {
-    private final String replayTrackId;
+    public static final Codec<OutsideEntityTracker> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        UUIDUtil.CODEC.fieldOf("replayTrackId").forGetter(OutsideEntityTracker::replayTrackId),
+        Codec.LONG.fieldOf("eventGameTime").forGetter(OutsideEntityTracker::eventGameTime),
+        EntityData.CODEC.fieldOf("sourceEntity").forGetter(OutsideEntityTracker::sourceEntity),
+        EntitySnapshot.CODEC.listOf(1, OutsideEntityReplay.MAX_SNAPSHOTS).fieldOf("snapshots").forGetter(OutsideEntityTracker::snapshots),
+        OutsideEntityEvent.CODEC.listOf(0, OutsideEntityReplay.MAX_ENTITY_EVENTS).fieldOf("entityEvents").forGetter(OutsideEntityTracker::entityEvents)
+    ).apply(instance, OutsideEntityTracker::new));
+
+    private final UUID replayTrackId;
     private final long eventGameTime;
     private final long finalGameTime;
     private final EntityData sourceEntity;
@@ -20,7 +31,7 @@ final class OutsideEntityTracker {
     private final ArrayDeque<EntitySnapshot> snapshots = new ArrayDeque<>(OutsideEntityReplay.MAX_SNAPSHOTS);
     private final ArrayDeque<OutsideEntityEvent> entityEvents = new ArrayDeque<>(OutsideEntityReplay.MAX_ENTITY_EVENTS);
 
-    OutsideEntityTracker(final String replayTrackId,
+    OutsideEntityTracker(final UUID replayTrackId,
                          final long eventGameTime,
                          final LivingEntity sourceEntity) {
         this.replayTrackId = replayTrackId;
@@ -30,7 +41,20 @@ final class OutsideEntityTracker {
         this.record(sourceEntity);
     }
 
-    String replayTrackId() {
+    OutsideEntityTracker(final UUID replayTrackId,
+                         final long eventGameTime,
+                         final EntityData sourceEntity,
+                         final List<EntitySnapshot> snapshots,
+                         final List<OutsideEntityEvent> entityEvents) {
+        this.replayTrackId = replayTrackId;
+        this.eventGameTime = eventGameTime;
+        this.finalGameTime = eventGameTime + OutsideEntityReplay.MAX_SNAPSHOTS - 1L;
+        this.sourceEntity = sourceEntity;
+        this.snapshots.addAll(snapshots);
+        this.entityEvents.addAll(entityEvents);
+    }
+
+    UUID replayTrackId() {
         return this.replayTrackId;
     }
 
@@ -40,6 +64,18 @@ final class OutsideEntityTracker {
 
     UUID sourceEntityId() {
         return this.sourceEntity.uuid();
+    }
+
+    EntityData sourceEntity() {
+        return this.sourceEntity;
+    }
+
+    List<EntitySnapshot> snapshots() {
+        return List.copyOf(this.snapshots);
+    }
+
+    List<OutsideEntityEvent> entityEvents() {
+        return List.copyOf(this.entityEvents);
     }
 
     boolean record(final LivingEntity entity) {

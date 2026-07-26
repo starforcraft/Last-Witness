@@ -1,5 +1,7 @@
 package com.ultramega.lastwitness.tracking;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.codec.ByteBufCodecs;
@@ -18,6 +20,10 @@ public record EntitySnapshot(long gameTime, CompoundTag entityData) {
         ByteBufCodecs.COMPOUND_TAG, EntitySnapshot::entityData,
         EntitySnapshot::new
     );
+    public static final Codec<EntitySnapshot> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        Codec.LONG.fieldOf("gameTime").forGetter(EntitySnapshot::gameTime),
+        CompoundTag.CODEC.fieldOf("entityData").forGetter(EntitySnapshot::entityData)
+    ).apply(instance, EntitySnapshot::new));
 
     private static final String UUID_KEY = "UUID";
     private static final String BODY_Y_ROT_KEY = "LastWitnessBodyYRot";

@@ -8,6 +8,7 @@ import com.ultramega.lastwitness.tracking.EchoTrack;
 import com.ultramega.lastwitness.tracking.EchoTrackerManager;
 
 import java.util.Optional;
+import java.util.UUID;
 
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -83,7 +84,7 @@ public final class EchoGhostHandler {
         }
     }
 
-    private static void markMatchingStackPickedUp(final Inventory inventory, final String trackerId) {
+    private static void markMatchingStackPickedUp(final Inventory inventory, final UUID trackerId) {
         for (int slot = 0; slot < inventory.getContainerSize(); slot++) {
             final ItemStack stack = inventory.getItem(slot);
             final EchoOfPastData echo = stack.get(ModDataComponents.ECHO_OF_PAST.get());

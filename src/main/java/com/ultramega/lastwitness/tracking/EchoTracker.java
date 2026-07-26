@@ -8,17 +8,43 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import com.mojang.serialization.Codec;
+import com.mojang.serialization.codecs.RecordCodecBuilder;
+import net.minecraft.core.UUIDUtil;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.EntityEvent;
 import net.minecraft.world.entity.LivingEntity;
 
 final class EchoTracker {
-    private static final int MAX_ENTITY_EVENTS = 4096;
+    static final int MAX_ENTITY_EVENTS = 4096;
+    static final int MAX_ACTIVE_SNAPSHOTS = 120 * 20;
 
-    private final String id = UUID.randomUUID().toString();
-    private final ArrayDeque<EntitySnapshot> snapshots = new ArrayDeque<>(trackedTicks());
-    private final ArrayDeque<EntityReplayEvent> entityEvents = new ArrayDeque<>();
-    private long lastRecordedGameTime = Long.MIN_VALUE;
+    public static final Codec<EchoTracker> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+        UUIDUtil.CODEC.fieldOf("id").forGetter(EchoTracker::id),
+        EntitySnapshot.CODEC.listOf(0, MAX_ACTIVE_SNAPSHOTS).fieldOf("snapshots").forGetter(EchoTracker::snapshots),
+        EntityReplayEvent.CODEC.listOf(0, EchoTracker.MAX_ENTITY_EVENTS).fieldOf("entityEvents").forGetter(EchoTracker::entityEvents),
+        Codec.LONG.fieldOf("lastRecordedGameTime").forGetter(EchoTracker::lastRecordedGameTime)
+    ).apply(instance, EchoTracker::new));
+
+    private final UUID id;
+    private final ArrayDeque<EntitySnapshot> snapshots;
+    private final ArrayDeque<EntityReplayEvent> entityEvents;
+    private long lastRecordedGameTime;
+
+    EchoTracker() {
+        this(UUID.randomUUID(), List.of(), List.of(), Long.MIN_VALUE);
+    }
+
+    EchoTracker(final UUID id,
+                final List<EntitySnapshot> snapshots,
+                final List<EntityReplayEvent> entityEvents,
+                final long lastRecordedGameTime) {
+        this.id = id;
+        this.snapshots = new ArrayDeque<>(Math.max(trackedTicks(), snapshots.size()));
+        this.snapshots.addAll(snapshots);
+        this.entityEvents = new ArrayDeque<>(entityEvents);
+        this.lastRecordedGameTime = lastRecordedGameTime;
+    }
 
     void recordEntityEvent(final LivingEntity entity, final byte eventId) {
         // Damage events are recorded in recordDamageEvent
@@ -113,8 +139,20 @@ final class EchoTracker {
         }
     }
 
-    String id() {
+    UUID id() {
         return this.id;
+    }
+
+    List<EntitySnapshot> snapshots() {
+        return List.copyOf(this.snapshots);
+    }
+
+    List<EntityReplayEvent> entityEvents() {
+        return List.copyOf(this.entityEvents);
+    }
+
+    long lastRecordedGameTime() {
+        return this.lastRecordedGameTime;
     }
 
     EchoTrack freeze(final LivingEntity entity) {
