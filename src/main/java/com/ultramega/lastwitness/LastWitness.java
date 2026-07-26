@@ -30,7 +30,7 @@ public final class LastWitness {
 
         modEventBus.addListener(LastWitness::registerPayloads);
 
-        modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
     }
 
     private static void registerPayloads(final RegisterPayloadHandlersEvent event) {

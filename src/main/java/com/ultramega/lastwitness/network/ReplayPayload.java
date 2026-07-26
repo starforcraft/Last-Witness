@@ -22,9 +22,11 @@ public record ReplayPayload(EntityData sourceEntity,
                             boolean firstPerson) implements CustomPacketPayload {
     public static final Type<ReplayPayload> TYPE = new Type<>(Identifier.fromNamespaceAndPath(MODID, "ghost_replay"));
 
-    private static final StreamCodec<ByteBuf, List<EntitySnapshot>> SNAPSHOTS_STREAM_CODEC = EntitySnapshot.STREAM_CODEC.apply(ByteBufCodecs.list(getMaxSnapshots()));
+    private static final int MAX_REPLAY_ELEMENTS = 120 * 20;
+    private static final StreamCodec<ByteBuf, List<EntitySnapshot>> SNAPSHOTS_STREAM_CODEC = EntitySnapshot.STREAM_CODEC.apply(
+        ByteBufCodecs.list(MAX_REPLAY_ELEMENTS));
     private static final StreamCodec<ByteBuf, List<EntityReplayEvent>> ENTITY_EVENTS_STREAM_CODEC = EntityReplayEvent.STREAM_CODEC.apply(
-        ByteBufCodecs.list(getMaxSnapshots()));
+        ByteBufCodecs.list(MAX_REPLAY_ELEMENTS));
 
     public static final StreamCodec<ByteBuf, ReplayPayload> STREAM_CODEC = StreamCodec.composite(
         EntityData.STREAM_CODEC, ReplayPayload::sourceEntity,
@@ -38,11 +40,12 @@ public record ReplayPayload(EntityData sourceEntity,
         snapshots = List.copyOf(snapshots);
         entityEvents = List.copyOf(entityEvents);
 
-        if (snapshots.size() > getMaxSnapshots()) {
-            throw new IllegalArgumentException("A ghost replay may contain at most " + getMaxSnapshots() + " snapshots");
+        final int configuredMaximum = getConfiguredMaxSnapshots();
+        if (snapshots.size() > configuredMaximum) {
+            throw new IllegalArgumentException("A ghost replay may contain at most " + configuredMaximum + " snapshots");
         }
-        if (entityEvents.size() > getMaxSnapshots()) {
-            throw new IllegalArgumentException("A ghost replay may contain at most " + getMaxSnapshots() + " entity events");
+        if (entityEvents.size() > configuredMaximum) {
+            throw new IllegalArgumentException("A ghost replay may contain at most " + configuredMaximum + " entity events");
         }
     }
 
@@ -50,7 +53,7 @@ public record ReplayPayload(EntityData sourceEntity,
         return new ReplayPayload(new EntityData(track.sourceEntityId(), track.sourceEntityType()), track.snapshots(), track.entityEvents(), firstPerson);
     }
 
-    private static int getMaxSnapshots() {
+    private static int getConfiguredMaxSnapshots() {
         return Config.ECHO_TRACK_SECONDS.get() * 20;
     }
 

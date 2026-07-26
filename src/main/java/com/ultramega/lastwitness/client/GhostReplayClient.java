@@ -365,7 +365,7 @@ public final class GhostReplayClient {
             firstPerson ? minecraft.options.getCameraType() : null
         );
         level.addEntity(replayEntity);
-        playSound(replayEntity, ModSounds.GHOST_ENVIRONMENT.value(), SoundSource.AMBIENT);
+        playSound(replayEntity, ModSounds.GHOST_ENVIRONMENT.value(), SoundSource.AMBIENT, firstPerson ? 2.0f : 0.8f);
         replay.tickOutsideEntities(level, 0L);
         replay.replayEventsThrough(0L);
         if (firstPerson) {
@@ -495,7 +495,11 @@ public final class GhostReplayClient {
     }
 
     public static void playSound(final Entity entity, final SoundEvent sound, final SoundSource source) {
-        Minecraft.getInstance().getSoundManager().play(new EntityFadingBoundSoundInstance(sound, source, 2.0f, 1.0f, entity, entity.getRandom().nextLong()));
+        playSound(entity, sound, source, 2.0f);
+    }
+
+    public static void playSound(final Entity entity, final SoundEvent sound, final SoundSource source, final float volume) {
+        Minecraft.getInstance().getSoundManager().play(new EntityFadingBoundSoundInstance(sound, source, volume, 1.0f, entity, entity.getRandom().nextLong()));
     }
 
     private record FirstPersonHandState(ItemStack playerMainHand,
