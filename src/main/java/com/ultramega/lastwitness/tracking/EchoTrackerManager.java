@@ -122,10 +122,6 @@ public final class EchoTrackerManager {
         return completedTrack;
     }
 
-    public static Optional<EchoTrack> findCompleted(final MinecraftServer server, final UUID trackerId) {
-        return Optional.ofNullable(getStore(server).completedTracks.get(trackerId));
-    }
-
     public static void discardActive(final MinecraftServer server, final UUID entityId) {
         final EchoTrackerSavedData store = getStore(server);
         final EchoTracker removedTracker = store.activeTrackers.remove(entityId);
@@ -135,12 +131,26 @@ public final class EchoTrackerManager {
         }
     }
 
-    public static Optional<EchoTrack> removeCompleted(final MinecraftServer server, final UUID trackerId) {
+    public static Optional<EchoTrack> findCompleted(final MinecraftServer server, final UUID trackerId) {
+        return Optional.ofNullable(getStore(server).completedTracks.get(trackerId));
+    }
+
+    public static void removeCompleted(final MinecraftServer server, final UUID trackerId) {
         final EchoTrackerSavedData store = getStore(server);
         removeOutsideTrackers(store, trackerId);
-        final Optional<EchoTrack> removed = Optional.ofNullable(store.completedTracks.remove(trackerId));
+        store.completedTracks.remove(trackerId);
         store.setDirty();
-        return removed;
+    }
+
+    public static Optional<EchoTrack> snapshotActive(final MinecraftServer server, final LivingEntity entity) {
+        final EchoTracker tracker = getStore(server).activeTrackers.get(entity.getUUID());
+        if (tracker == null) {
+            return Optional.empty();
+        }
+
+        tracker.recordFinal(entity);
+
+        return Optional.of(tracker.freeze(entity));
     }
 
     private static boolean updateOutsideReplay(final EchoTrackerSavedData store,

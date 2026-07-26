@@ -30,6 +30,7 @@ public class EchoOfPastItem extends Item {
         if (!stack.has(ModDataComponents.ECHO_OF_PAST.get()) || stack.get(ModDataComponents.ECHO_OF_PAST.get()) == null) {
             return InteractionResult.FAIL;
         }
+        // consumes this item
         return super.use(level, player, hand);
     }
 
@@ -47,6 +48,7 @@ public class EchoOfPastItem extends Item {
             }
 
             PacketDistributor.sendToPlayer(serverPlayer, ReplayPayload.fromTrack(track.get(), true));
+            EchoTrackerManager.removeCompleted(serverLevel.getServer(), echo.trackerId());
         }
 
         return super.finishUsingItem(stack, level, consumer);

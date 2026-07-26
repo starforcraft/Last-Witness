@@ -55,7 +55,7 @@ public final class EchoTooltipHandler {
             .withStyle(ChatFormatting.GRAY));
 
         if (tooltipFlag.isAdvanced()) {
-            tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.tracker_id", echo.trackerId())
+            tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.tracker_id", echo.trackerId().toString())
                 .withStyle(ChatFormatting.DARK_GRAY));
         }
 

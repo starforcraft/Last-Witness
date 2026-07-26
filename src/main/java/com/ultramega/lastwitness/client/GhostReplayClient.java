@@ -50,8 +50,10 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.InputEvent;
 import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
+import net.neoforged.neoforge.client.event.RenderGuiLayerEvent;
 import net.neoforged.neoforge.client.event.RenderLivingEvent;
 import net.neoforged.neoforge.client.event.ViewportEvent;
+import net.neoforged.neoforge.client.gui.VanillaGuiLayers;
 import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEvent;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
@@ -248,6 +250,21 @@ public final class GhostReplayClient {
     @SubscribeEvent
     public static void onRenderGuiPost(final RenderGuiEvent.Post event) {
         restoreHudState();
+    }
+
+    @SubscribeEvent
+    public static void onRenderGuiLayerPre(final RenderGuiLayerEvent.Pre event) {
+        if (activeFirstPerson == null) {
+            return;
+        }
+
+        // Health and Hotbar are already hidden by the getCameraPlayer() != null check in their render methods
+        // e.g. {@link net.minecraft.client.gui.Gui.extractHealthLevel}
+        if (VanillaGuiLayers.CONTEXTUAL_INFO_BAR_BACKGROUND.equals(event.getName())
+            || VanillaGuiLayers.CONTEXTUAL_INFO_BAR.equals(event.getName())
+            || VanillaGuiLayers.EXPERIENCE_LEVEL.equals(event.getName())) {
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent

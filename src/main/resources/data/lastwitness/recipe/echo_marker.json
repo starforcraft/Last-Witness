@@ -2,9 +2,9 @@
   "type": "minecraft:crafting_shaped",
   "category": "misc",
   "pattern": [
-    "GSG",
-    "AEA",
-    "GSG"
+    "GAG",
+    "SES",
+    "GAG"
   ],
   "key": {
     "G": "minecraft:glass_pane",

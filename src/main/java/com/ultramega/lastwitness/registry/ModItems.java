@@ -1,5 +1,6 @@
 package com.ultramega.lastwitness.registry;
 
+import com.ultramega.lastwitness.Config;
 import com.ultramega.lastwitness.items.EchoMarkerItem;
 import com.ultramega.lastwitness.items.EchoOfPastItem;
 
@@ -20,5 +21,5 @@ public final class ModItems {
     public static final Supplier<Item> ECHO_OF_PAST = ITEMS.registerItem("echo_of_past", EchoOfPastItem::new,
         p -> p.stacksTo(1).fireResistant().rarity(Rarity.EPIC).food(CONSUMABLE));
     public static final Supplier<Item> ECHO_MARKER = ITEMS.registerItem("echo_marker", EchoMarkerItem::new,
-        p -> p.stacksTo(1).fireResistant().rarity(Rarity.RARE));
+        p -> p.durability(Config.DEFAULT_ECHO_MARKER_DURABILITY).fireResistant().rarity(Rarity.RARE));
 }

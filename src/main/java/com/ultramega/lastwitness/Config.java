@@ -3,11 +3,13 @@ package com.ultramega.lastwitness;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class Config {
+    public static final int DEFAULT_ECHO_MARKER_DURABILITY = 3;
+
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.IntValue ECHO_MARKER_DURABILITY = BUILDER
             .comment("After how many views into the past the echo marker should break")
-            .defineInRange("echoMarkerDurability", 3, 1, Integer.MAX_VALUE);
+            .defineInRange("echoMarkerDurability", DEFAULT_ECHO_MARKER_DURABILITY, 1, Integer.MAX_VALUE);
 
     public static final ModConfigSpec.DoubleValue ECHO_SPAWN_CHANCE = BUILDER
             .comment("Chance that a freshly spawned living entity is marked as carrying an echo (0.0 to 1.0)")
