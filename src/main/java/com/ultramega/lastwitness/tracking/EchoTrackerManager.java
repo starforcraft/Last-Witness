@@ -3,6 +3,7 @@ package com.ultramega.lastwitness.tracking;
 import com.ultramega.lastwitness.data.OutsideEntityReplay;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -111,12 +112,32 @@ public final class EchoTrackerManager {
         store.setDirty();
     }
 
+    public static EchoTrack mark(final MinecraftServer server, final LivingEntity entity) {
+        final EchoTrackerSavedData store = getStore(server);
+        final EchoTracker tracker = activeTracker(store, entity);
+        tracker.recordFinal(entity);
+        store.markedTrackerIds.add(tracker.id());
+        store.setDirty();
+        return tracker.freeze(entity);
+    }
+
+    public static boolean hasActive(final MinecraftServer server, final UUID entityId) {
+        return getStore(server).activeTrackers.containsKey(entityId);
+    }
+
+    public static boolean isMarked(final MinecraftServer server, final UUID entityId) {
+        final EchoTrackerSavedData store = getStore(server);
+        final EchoTracker tracker = store.activeTrackers.get(entityId);
+        return tracker != null && store.markedTrackerIds.contains(tracker.id());
+    }
+
     public static EchoTrack complete(final MinecraftServer server, final LivingEntity entity) {
         final EchoTrackerSavedData store = getStore(server);
         final EchoTracker activeTracker = store.activeTrackers.remove(entity.getUUID());
         final EchoTracker tracker = activeTracker != null ? activeTracker : new EchoTracker();
         tracker.recordFinal(entity);
         final EchoTrack completedTrack = tracker.freeze(entity);
+        store.markedTrackerIds.remove(tracker.id());
         store.completedTracks.put(completedTrack.id(), completedTrack);
         store.setDirty();
         return completedTrack;
@@ -126,6 +147,7 @@ public final class EchoTrackerManager {
         final EchoTrackerSavedData store = getStore(server);
         final EchoTracker removedTracker = store.activeTrackers.remove(entityId);
         if (removedTracker != null) {
+            store.markedTrackerIds.remove(removedTracker.id());
             removeOutsideTrackers(store, removedTracker.id());
             store.setDirty();
         }
@@ -133,6 +155,12 @@ public final class EchoTrackerManager {
 
     public static Optional<EchoTrack> findCompleted(final MinecraftServer server, final UUID trackerId) {
         return Optional.ofNullable(getStore(server).completedTracks.get(trackerId));
+    }
+
+    public static Optional<EchoTrack> findLatestCompletedForEntity(final MinecraftServer server, final UUID entityId) {
+        return getStore(server).completedTracks.values().stream()
+            .filter(track -> track.sourceEntityId().equals(entityId))
+            .max(Comparator.comparingLong(EchoTrack::timeOfDeath));
     }
 
     public static void removeCompleted(final MinecraftServer server, final UUID trackerId) {
@@ -143,12 +171,14 @@ public final class EchoTrackerManager {
     }
 
     public static Optional<EchoTrack> snapshotActive(final MinecraftServer server, final LivingEntity entity) {
-        final EchoTracker tracker = getStore(server).activeTrackers.get(entity.getUUID());
+        final EchoTrackerSavedData store = getStore(server);
+        final EchoTracker tracker = store.activeTrackers.get(entity.getUUID());
         if (tracker == null) {
             return Optional.empty();
         }
 
         tracker.recordFinal(entity);
+        store.setDirty();
 
         return Optional.of(tracker.freeze(entity));
     }

@@ -8,6 +8,7 @@ import com.ultramega.lastwitness.tracking.EchoTrackerManager;
 
 import java.util.List;
 
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -32,18 +33,26 @@ public final class EchoTrackingHandler {
             return;
         }
 
-        EchoTrackerManager.recordOutsideSourceTick(serverLevel.getServer(), livingEntity);
+        final MinecraftServer server = serverLevel.getServer();
+        EchoTrackerManager.recordOutsideSourceTick(server, livingEntity);
 
-        if (!livingEntity.isAlive() || !carriesEcho(livingEntity)) {
+        if (!livingEntity.isAlive()) {
+            if (EchoTrackerManager.isMarked(server, livingEntity.getUUID())) {
+                EchoTrackerManager.complete(server, livingEntity);
+            }
             return;
         }
-        EchoTrackerManager.record(serverLevel.getServer(), livingEntity);
+
+        if (!shouldTrack(server, livingEntity)) {
+            return;
+        }
+        EchoTrackerManager.record(server, livingEntity);
     }
 
     @SubscribeEvent
     public static void onLivingDamage(final LivingDamageEvent.Post event) {
         final LivingEntity livingEntity = event.getEntity();
-        if (!(livingEntity.level() instanceof ServerLevel serverLevel) || !carriesEcho(livingEntity)) {
+        if (!(livingEntity.level() instanceof ServerLevel serverLevel) || !shouldTrack(serverLevel.getServer(), livingEntity)) {
             return;
         }
 
@@ -60,19 +69,31 @@ public final class EchoTrackingHandler {
     @SubscribeEvent
     public static void onLivingDrops(final LivingDropsEvent event) {
         final LivingEntity livingEntity = event.getEntity();
-        if (!(livingEntity.level() instanceof ServerLevel serverLevel) || !carriesEcho(livingEntity)) {
+        if (!(livingEntity.level() instanceof ServerLevel serverLevel)) {
+            return;
+        }
+        final MinecraftServer server = serverLevel.getServer();
+        final boolean carriesEcho = carriesEcho(livingEntity);
+        final boolean marked = EchoTrackerManager.isMarked(server, livingEntity.getUUID());
+        if (!carriesEcho && !marked) {
             return;
         }
 
         final List<ItemEntity> usableDrops = event.getDrops().stream()
             .filter(drop -> !drop.getItem().isEmpty())
             .toList();
-        if (usableDrops.isEmpty()) {
-            EchoTrackerManager.discardActive(serverLevel.getServer(), livingEntity.getUUID());
+        if (!marked && usableDrops.isEmpty()) {
+            EchoTrackerManager.discardActive(server, livingEntity.getUUID());
             return;
         }
 
-        final EchoTrack track = EchoTrackerManager.complete(serverLevel.getServer(), livingEntity);
+        final EchoTrack track = EchoTrackerManager.hasActive(server, livingEntity.getUUID())
+            ? EchoTrackerManager.complete(server, livingEntity)
+            : EchoTrackerManager.findLatestCompletedForEntity(server, livingEntity.getUUID()).orElseGet(() -> EchoTrackerManager.complete(server, livingEntity));
+        if (!carriesEcho || usableDrops.isEmpty()) {
+            return;
+        }
+
         final EchoOfPastData component = new EchoOfPastData(
             track.id(),
             track.sourceEntityType(),
@@ -91,10 +112,22 @@ public final class EchoTrackingHandler {
             return;
         }
 
-        EchoTrackerManager.finishOutsideSource(serverLevel.getServer(), livingEntity);
-        if (carriesEcho(livingEntity)) {
-            EchoTrackerManager.discardActive(serverLevel.getServer(), livingEntity.getUUID());
+        final MinecraftServer server = serverLevel.getServer();
+        EchoTrackerManager.finishOutsideSource(server, livingEntity);
+        if (!EchoTrackerManager.hasActive(server, livingEntity.getUUID())) {
+            return;
         }
+        if (EchoTrackerManager.isMarked(server, livingEntity.getUUID())) {
+            if (!livingEntity.isAlive()) {
+                EchoTrackerManager.complete(server, livingEntity);
+            }
+            return;
+        }
+        EchoTrackerManager.discardActive(server, livingEntity.getUUID());
+    }
+
+    private static boolean shouldTrack(final MinecraftServer server, final LivingEntity livingEntity) {
+        return carriesEcho(livingEntity) || EchoTrackerManager.hasActive(server, livingEntity.getUUID());
     }
 
     private static boolean carriesEcho(final LivingEntity livingEntity) {

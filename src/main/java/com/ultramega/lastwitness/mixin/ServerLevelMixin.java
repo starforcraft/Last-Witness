@@ -23,7 +23,8 @@ public abstract class ServerLevelMixin {
 
         final MinecraftServer server = this.getServer();
 
-        if (livingEntity.hasData(ModAttachments.CARRIES_ECHO) && livingEntity.getData(ModAttachments.CARRIES_ECHO)) {
+        if (livingEntity.hasData(ModAttachments.CARRIES_ECHO) && livingEntity.getData(ModAttachments.CARRIES_ECHO)
+            || EchoTrackerManager.hasActive(server, livingEntity.getUUID())) {
             EchoTrackerManager.recordEntityEvent(server, livingEntity, event);
         }
 
