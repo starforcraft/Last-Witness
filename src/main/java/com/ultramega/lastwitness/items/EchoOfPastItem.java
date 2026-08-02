@@ -1,7 +1,9 @@
 package com.ultramega.lastwitness.items;
 
 import com.ultramega.lastwitness.data.EchoOfPastData;
+import com.ultramega.lastwitness.data.WitnessJournalData;
 import com.ultramega.lastwitness.network.ReplayPayload;
+import com.ultramega.lastwitness.registry.ModAttachments;
 import com.ultramega.lastwitness.registry.ModDataComponents;
 import com.ultramega.lastwitness.tracking.EchoTrack;
 import com.ultramega.lastwitness.tracking.EchoTrackerManager;
@@ -47,8 +49,17 @@ public class EchoOfPastItem extends Item {
                 return stack;
             }
 
-            PacketDistributor.sendToPlayer(serverPlayer, ReplayPayload.fromTrack(track.get(), true));
-            EchoTrackerManager.removeCompleted(serverLevel.getServer(), echo.trackerId());
+            final WitnessJournalData.Update update = serverPlayer.getData(ModAttachments.WITNESS_JOURNAL).record(echo);
+            serverPlayer.setData(ModAttachments.WITNESS_JOURNAL, update.data());
+            final ReplayPayload.ReplayCompletion completion = ReplayPayload.ReplayCompletion.resonance(
+                echo.quality(),
+                update.resonanceGained(),
+                update.data().resonance()
+            );
+            PacketDistributor.sendToPlayer(serverPlayer, ReplayPayload.fromTrack(track.get(), true, completion));
+            if (!serverPlayer.hasInfiniteMaterials()) {
+                EchoTrackerManager.removeCompleted(serverLevel.getServer(), echo.trackerId());
+            }
         }
 
         return super.finishUsingItem(stack, level, consumer);

@@ -1,6 +1,7 @@
 package com.ultramega.lastwitness;
 
 import com.ultramega.lastwitness.network.ReplayPayload;
+import com.ultramega.lastwitness.network.WitnessJournalPayload;
 import com.ultramega.lastwitness.registry.ModAttachments;
 import com.ultramega.lastwitness.registry.ModCreativeTabs;
 import com.ultramega.lastwitness.registry.ModDataComponents;
@@ -8,6 +9,7 @@ import com.ultramega.lastwitness.registry.ModItems;
 import com.ultramega.lastwitness.registry.ModSounds;
 
 import com.mojang.logging.LogUtils;
+import net.minecraft.resources.Identifier;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -29,7 +31,6 @@ public final class LastWitness {
         ModSounds.SOUND_EVENTS.register(modEventBus);
 
         modEventBus.addListener(LastWitness::registerPayloads);
-
         modContainer.registerConfig(ModConfig.Type.SERVER, Config.SPEC);
     }
 
@@ -37,5 +38,10 @@ public final class LastWitness {
         final PayloadRegistrar registrar = event.registrar("1.0");
 
         registrar.playToClient(ReplayPayload.TYPE, ReplayPayload.STREAM_CODEC);
+        registrar.playToClient(WitnessJournalPayload.TYPE, WitnessJournalPayload.STREAM_CODEC);
+    }
+
+    public static Identifier makeId(final String id) {
+        return Identifier.fromNamespaceAndPath(MODID, id);
     }
 }

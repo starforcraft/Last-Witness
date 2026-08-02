@@ -1,7 +1,6 @@
 package com.ultramega.lastwitness.compat.jei;
 
 import com.ultramega.lastwitness.Config;
-import com.ultramega.lastwitness.LastWitness;
 import com.ultramega.lastwitness.registry.ModItems;
 
 import java.math.BigDecimal;
@@ -13,9 +12,11 @@ import mezz.jei.api.registration.IRecipeRegistration;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 
+import static com.ultramega.lastwitness.LastWitness.makeId;
+
 @JeiPlugin
 public final class LastWitnessJeiPlugin implements IModPlugin {
-    private static final Identifier PLUGIN_UID = Identifier.fromNamespaceAndPath(LastWitness.MODID, "jei_plugin");
+    private static final Identifier PLUGIN_UID = makeId("jei_plugin");
 
     @Override
     public void registerRecipes(final IRecipeRegistration registration) {

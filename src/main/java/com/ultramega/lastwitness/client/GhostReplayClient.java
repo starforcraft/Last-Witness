@@ -58,6 +58,7 @@ import net.neoforged.neoforge.client.renderstate.RegisterRenderStateModifiersEve
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import static com.ultramega.lastwitness.LastWitness.MODID;
+import static com.ultramega.lastwitness.LastWitness.makeId;
 
 @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
 public final class GhostReplayClient {
@@ -72,7 +73,7 @@ public final class GhostReplayClient {
     private static final int ENTITY_RENDER_VISIBLE_DURATION_TICKS = 2;
     private static final float ENTITY_RENDER_REVEAL_CHANCE = 0.5F;
 
-    private static final ContextKey<Boolean> GHOST_RENDER_DATA = new ContextKey<>(Identifier.fromNamespaceAndPath(MODID, "is_ghost"));
+    private static final ContextKey<Boolean> GHOST_RENDER_DATA = new ContextKey<>(makeId("is_ghost"));
     private static final RandomSource ENTITY_RENDER_RANDOM = RandomSource.create();
     private static final AtomicInteger NEXT_ENTITY_ID = new AtomicInteger(-1_000_000_000);
     private static final List<ActiveReplay> ACTIVE_GHOSTS = new ArrayList<>();
@@ -90,7 +91,14 @@ public final class GhostReplayClient {
     }
 
     public static void handlePayload(final ReplayPayload payload, final IPayloadContext context) {
-        startReplay(payload.sourceEntity().uuid(), payload.sourceEntity().type(), payload.snapshots(), payload.entityEvents(), payload.firstPerson());
+        startReplay(
+            payload.sourceEntity().uuid(),
+            payload.sourceEntity().type(),
+            payload.snapshots(),
+            payload.entityEvents(),
+            payload.firstPerson(),
+            payload.completion()
+        );
     }
 
     @SubscribeEvent
@@ -128,13 +136,13 @@ public final class GhostReplayClient {
         while (iterator.hasNext()) {
             final ActiveReplay replay = iterator.next();
             if (!replay.tick(level)) {
-                replay.remove(level);
+                replay.finish(level);
                 iterator.remove();
             }
         }
 
         if (activeFirstPerson != null && !activeFirstPerson.tick(level)) {
-            activeFirstPerson.remove(level);
+            activeFirstPerson.finish(level);
             activeFirstPerson = null;
         }
     }
@@ -322,7 +330,8 @@ public final class GhostReplayClient {
                                     final String sourceEntityType,
                                     final List<EntitySnapshot> snapshots,
                                     final List<EntityReplayEvent> entityEvents,
-                                    final boolean firstPerson) {
+                                    final boolean firstPerson,
+                                    final ReplayPayload.ReplayCompletion completion) {
         final Minecraft minecraft = Minecraft.getInstance();
         final ClientLevel level = minecraft.level;
         if (level == null || snapshots.isEmpty()) {
@@ -362,7 +371,8 @@ public final class GhostReplayClient {
             replayUuid,
             !firstPerson,
             firstPerson ? minecraft.getCameraEntity() : null,
-            firstPerson ? minecraft.options.getCameraType() : null
+            firstPerson ? minecraft.options.getCameraType() : null,
+            completion
         );
         level.addEntity(replayEntity);
         playSound(replayEntity, ModSounds.GHOST_ENVIRONMENT.value(), SoundSource.AMBIENT, firstPerson ? 2.0f : 0.8f);
@@ -526,6 +536,7 @@ public final class GhostReplayClient {
         private final Entity previousCameraEntity;
         private final CameraType previousCameraType;
         private final long firstGameTime;
+        private final ReplayPayload.ReplayCompletion completion;
         private final List<ScheduledOutsideReplay> scheduledOutsideReplays;
         private final List<ActiveOutsideReplay> outsideReplays = new ArrayList<>();
 
@@ -535,6 +546,7 @@ public final class GhostReplayClient {
         private long elapsedTicks;
         private long entityVisibilityTick;
         private long entitiesVisibleUntilTick = Long.MIN_VALUE;
+        private boolean completedNormally;
 
         private ActiveReplay(final LivingEntity entity,
                              final List<ReplayFrame> frames,
@@ -543,7 +555,8 @@ public final class GhostReplayClient {
                              final UUID replayUuid,
                              final boolean asExternalGhost,
                              final Entity previousCameraEntity,
-                             final CameraType previousCameraType) {
+                             final CameraType previousCameraType,
+                             final ReplayPayload.ReplayCompletion completion) {
             this.entity = entity;
             this.frames = List.copyOf(frames);
             this.entityEvents = List.copyOf(entityEvents);
@@ -553,6 +566,7 @@ public final class GhostReplayClient {
             this.previousCameraEntity = previousCameraEntity;
             this.previousCameraType = previousCameraType;
             this.firstGameTime = this.frames.getFirst().snapshot().gameTime();
+            this.completion = completion == null ? ReplayPayload.ReplayCompletion.NONE : completion;
             this.scheduledOutsideReplays = asExternalGhost ? List.of() : this.buildOutsideReplaySchedule();
             this.nextFrame = 1;
             this.elapsedTicks = 1L;
@@ -624,6 +638,7 @@ public final class GhostReplayClient {
                 return true;
             }
 
+            this.completedNormally = true;
             return false;
         }
 
@@ -766,6 +781,18 @@ public final class GhostReplayClient {
 
         private long entityEventOffset(final int index) {
             return Math.max(0L, this.entityEvents.get(index).gameTime() - this.firstGameTime);
+        }
+
+        private void finish(final ClientLevel level) {
+            this.remove(level);
+            if (!this.completedNormally || !this.completion.present()) {
+                return;
+            }
+
+            final Player player = Minecraft.getInstance().player;
+            if (player != null) {
+                player.sendSystemMessage(this.completion.message());
+            }
         }
 
         private void remove(final ClientLevel level) {

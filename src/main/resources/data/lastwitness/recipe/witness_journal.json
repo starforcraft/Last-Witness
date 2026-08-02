@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:book",
+    "minecraft:amethyst_shard",
+    "minecraft:echo_shard"
+  ],
+  "result": {
+    "id": "lastwitness:witness_journal"
+  }
+}

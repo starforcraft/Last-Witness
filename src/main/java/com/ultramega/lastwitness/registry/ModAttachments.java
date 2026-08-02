@@ -1,5 +1,7 @@
 package com.ultramega.lastwitness.registry;
 
+import com.ultramega.lastwitness.data.WitnessJournalData;
+
 import java.util.function.Supplier;
 
 import com.mojang.serialization.Codec;
@@ -16,6 +18,13 @@ public final class ModAttachments {
         "carries_echo",
         () -> AttachmentType.builder(() -> false)
             .serialize(Codec.BOOL.fieldOf("value"))
+            .build()
+    );
+    public static final Supplier<AttachmentType<WitnessJournalData>> WITNESS_JOURNAL = ATTACHMENT_TYPES.register(
+        "witness_journal",
+        () -> AttachmentType.builder(WitnessJournalData::empty)
+            .serialize(WitnessJournalData.CODEC.fieldOf("value"))
+            .copyOnDeath()
             .build()
     );
 

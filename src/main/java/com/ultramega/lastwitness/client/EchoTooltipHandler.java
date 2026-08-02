@@ -45,20 +45,30 @@ public final class EchoTooltipHandler {
                 .withStyle(ChatFormatting.LIGHT_PURPLE));
         }
 
+        tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.quality", echo.quality().displayName())
+            .withStyle(ChatFormatting.GRAY));
         tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.source", sourceEntityName(echo.sourceEntityType()))
             .withStyle(ChatFormatting.GRAY));
+        if (!echo.killerEntityType().isBlank()) {
+            tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.killer", sourceEntityName(echo.killerEntityType()))
+                .withStyle(ChatFormatting.GRAY));
+        }
 
         tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.time_of_death", dayNumber(echo.timeOfDeath()), clockTime(echo.timeOfDeath()))
             .withStyle(ChatFormatting.GRAY));
-
         tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.cause", echo.cause().getString())
             .withStyle(ChatFormatting.GRAY));
+        tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.involved", echo.involvedEntityCount())
+            .withStyle(ChatFormatting.DARK_GRAY));
 
         if (tooltipFlag.isAdvanced()) {
+            if (!echo.dimension().isBlank() || !echo.biome().isBlank()) {
+                tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.location", echo.dimension(), echo.biome())
+                    .withStyle(ChatFormatting.DARK_GRAY));
+            }
             tooltip.accept(Component.translatable("tooltip.lastwitness.echo_of_past.tracker_id", echo.trackerId().toString())
                 .withStyle(ChatFormatting.DARK_GRAY));
         }
-
         if (isEchoOfPastItem) {
             tooltip.accept(Component.translatable("item.lastwitness.echo_of_past.help")
                 .withStyle(ChatFormatting.AQUA));

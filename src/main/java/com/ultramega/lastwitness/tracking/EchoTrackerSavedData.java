@@ -1,7 +1,5 @@
 package com.ultramega.lastwitness.tracking;
 
-import com.ultramega.lastwitness.LastWitness;
-
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -14,13 +12,14 @@ import java.util.UUID;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.minecraft.core.UUIDUtil;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraft.world.level.saveddata.SavedDataType;
 
+import static com.ultramega.lastwitness.LastWitness.makeId;
+
 final class EchoTrackerSavedData extends SavedData {
     static final SavedDataType<EchoTrackerSavedData> TYPE = new SavedDataType<>(
-        Identifier.fromNamespaceAndPath(LastWitness.MODID, "echo_tracker"),
+        makeId("echo_tracker"),
         EchoTrackerSavedData::new,
         StoreState.CODEC.xmap(
             EchoTrackerSavedData::new,

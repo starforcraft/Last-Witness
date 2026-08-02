@@ -1,6 +1,7 @@
 package com.ultramega.lastwitness.events;
 
 import com.ultramega.lastwitness.data.EchoOfPastData;
+import com.ultramega.lastwitness.data.MemoryQuality;
 import com.ultramega.lastwitness.registry.ModAttachments;
 import com.ultramega.lastwitness.registry.ModDataComponents;
 import com.ultramega.lastwitness.tracking.EchoTrack;
@@ -8,8 +9,10 @@ import com.ultramega.lastwitness.tracking.EchoTrackerManager;
 
 import java.util.List;
 
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
@@ -94,12 +97,23 @@ public final class EchoTrackingHandler {
             return;
         }
 
+        final Entity killer = responsibleEntity(event);
+        final List<String> involvedEntityTypes = MemoryQuality.involvedEntityTypes(track);
         final EchoOfPastData component = new EchoOfPastData(
             track.id(),
             track.sourceEntityType(),
             event.getSource().getLocalizedDeathMessage(livingEntity),
             track.timeOfDeath(),
-            true
+            true,
+            MemoryQuality.classify(track, event.getSource()),
+            entityTypeId(killer),
+            event.getSource().getMsgId(),
+            serverLevel.dimension().identifier().toString(),
+            serverLevel.getBiome(livingEntity.blockPosition()).unwrapKey()
+                .map(key -> key.identifier().toString())
+                .orElse("minecraft:unknown"),
+            involvedEntityTypes,
+            MemoryQuality.involvedEntityCount(track)
         );
 
         final ItemEntity selectedDrop = usableDrops.get(serverLevel.getRandom().nextInt(usableDrops.size()));
@@ -133,6 +147,15 @@ public final class EchoTrackingHandler {
     private static boolean carriesEcho(final LivingEntity livingEntity) {
         return livingEntity.hasData(ModAttachments.CARRIES_ECHO)
             && livingEntity.getData(ModAttachments.CARRIES_ECHO);
+    }
+
+    private static Entity responsibleEntity(final LivingDropsEvent event) {
+        final Entity source = event.getSource().getEntity();
+        return source != null ? source : event.getSource().getDirectEntity();
+    }
+
+    private static String entityTypeId(final Entity entity) {
+        return entity == null ? "" : BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType()).toString();
     }
 
     private static void attachToExactlyOneItem(final LivingDropsEvent event,
