@@ -1,6 +1,7 @@
 package com.ultramega.lastwitness.items;
 
 import com.ultramega.lastwitness.data.WitnessJournalData;
+import com.ultramega.lastwitness.data.WitnessSkills;
 import com.ultramega.lastwitness.network.WitnessJournalPayload;
 import com.ultramega.lastwitness.registry.ModAttachments;
 
@@ -24,7 +25,8 @@ public class WitnessJournalItem extends Item {
         }
 
         final WitnessJournalData journal = serverPlayer.getData(ModAttachments.WITNESS_JOURNAL);
-        PacketDistributor.sendToPlayer(serverPlayer, WitnessJournalPayload.from(journal));
+        final WitnessSkills skills = serverPlayer.getData(ModAttachments.WITNESS_SKILLS);
+        PacketDistributor.sendToPlayer(serverPlayer, WitnessJournalPayload.from(journal, skills));
         return InteractionResult.SUCCESS_SERVER;
     }
 }

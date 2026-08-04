@@ -6,6 +6,9 @@ import java.util.TreeSet;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
+import io.netty.buffer.ByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
 
 public record WitnessJournalData(int resonance,
                                  int echoesConsumed,
@@ -111,6 +114,42 @@ public record WitnessJournalData(int resonance,
         return left > Integer.MAX_VALUE - right ? Integer.MAX_VALUE : left + right;
     }
 
+    public WitnessJournalData addResonance(final int amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot add negative resonance: " + amount);
+        }
+        return this.withResonance(safeAdd(this.resonance, amount));
+    }
+
+    public WitnessJournalData removeResonance(final int amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("Cannot remove negative resonance: " + amount);
+        }
+        return this.withResonance(Math.max(0, this.resonance - amount));
+    }
+
+    public WitnessJournalData spendResonance(final int amount) {
+        if (amount < 0 || amount > this.resonance) {
+            throw new IllegalArgumentException("Cannot spend " + amount + " resonance from " + this.resonance);
+        }
+        return this.withResonance(this.resonance - amount);
+    }
+
+    private WitnessJournalData withResonance(final int updatedResonance) {
+        return new WitnessJournalData(
+            updatedResonance,
+            this.echoesConsumed,
+            this.environmentalDeaths,
+            this.witnessedEntityTypes,
+            this.attackerEntityTypes,
+            this.deathCauses,
+            this.dimensions,
+            this.biomes,
+            this.memorySignatures,
+            this.qualityCounts
+        );
+    }
+
     public record Update(WitnessJournalData data, int resonanceGained, boolean newMemory) {
     }
 
@@ -121,6 +160,14 @@ public record WitnessJournalData(int resonance,
             NON_NEGATIVE_INT.optionalFieldOf("turbulent", 0).forGetter(QualityCounts::turbulent),
             NON_NEGATIVE_INT.optionalFieldOf("impossible", 0).forGetter(QualityCounts::impossible)
         ).apply(instance, QualityCounts::new));
+
+        public static final StreamCodec<ByteBuf, QualityCounts> STREAM_CODEC = StreamCodec.composite(
+            ByteBufCodecs.VAR_INT, QualityCounts::faded,
+            ByteBufCodecs.VAR_INT, QualityCounts::vivid,
+            ByteBufCodecs.VAR_INT, QualityCounts::turbulent,
+            ByteBufCodecs.VAR_INT, QualityCounts::impossible,
+            QualityCounts::new
+        );
 
         public QualityCounts {
             faded = Math.max(0, faded);

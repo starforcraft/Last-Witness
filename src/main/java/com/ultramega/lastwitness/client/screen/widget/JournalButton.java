@@ -3,6 +3,7 @@ package com.ultramega.lastwitness.client.screen.widget;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.WidgetSprites;
+import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.ARGB;
@@ -27,5 +28,14 @@ public class JournalButton extends Button {
         graphics.blitSprite(RenderPipelines.GUI_TEXTURED, SPRITES.get(this.active, this.isHoveredOrFocused()),
             this.getX(), this.getY(), this.getWidth(), this.getHeight(), ARGB.white(this.alpha));
         this.extractDefaultLabel(graphics.textRendererForWidget(this, GuiGraphicsExtractor.HoveredTextEffects.NONE));
+    }
+
+    @Override
+    public boolean mouseClicked(final MouseButtonEvent event, final boolean doubleClick) {
+        final boolean clicked = super.mouseClicked(event, doubleClick);
+        if (clicked) {
+            this.setFocused(false);
+        }
+        return clicked;
     }
 }
